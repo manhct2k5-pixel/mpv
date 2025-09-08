@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+.build/
+.dist/
+
+# Virtual environments
+.env
+.venv
+venv/
+env/
+
+# IDE/Editor
+.vscode/
+.idea/
+*.code-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Flask/Logs
+instance/
+*.log
+
+# Node/Frontend caches
+node_modules/
+*.map
+
+# Local env examples
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Byte-compiled / optimized / DLL files
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Data (keep JSON in data/ committed as requested)
+# data/  # Uncomment to ignore data if needed later

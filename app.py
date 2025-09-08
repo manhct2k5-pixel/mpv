@@ -13,9 +13,18 @@ except Exception:
     pass
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True, origins=['http://localhost:5000', 'http://127.0.0.1:5000', 'null'], allow_headers=['Content-Type', 'Authorization'], methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+# Configure CORS dynamically and secure cookies for cross-site usage
+allowed_origins = [o.strip() for o in os.environ.get('ALLOWED_ORIGINS', '').split(',') if o.strip()]
+default_origins = ['http://localhost:5000', 'http://127.0.0.1:5000']
+frontend_origin = os.environ.get('FRONTEND_ORIGIN')  # e.g., https://<username>.github.io
+origins = list(dict.fromkeys(default_origins + (allowed_origins or []) + ([frontend_origin] if frontend_origin else []) + ['null']))
+
+CORS(app, supports_credentials=True, origins=origins, allow_headers=['Content-Type', 'Authorization'], methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+
 app.secret_key = os.environ.get('SECRET_KEY', 'wealthwallet_secret_key_2023_prod')
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_SECURE'] = True
 
 # File paths
 DATA_DIR = 'data'

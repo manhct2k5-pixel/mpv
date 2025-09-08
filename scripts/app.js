@@ -3,7 +3,8 @@ class WealthWalletApp {
     constructor() {
         // Use same-origin over http(s), fallback to localhost in file://
         const isHttpOrigin = /^https?:\/\//i.test(window.location.origin);
-        this.API_BASE_URL = isHttpOrigin ? '/api' : 'http://localhost:5000/api';
+        const fromConfig = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : null;
+        this.API_BASE_URL = fromConfig || (isHttpOrigin ? '/api' : 'http://localhost:5000/api');
         this.currentSection = 'dashboard';
         this.charts = {};
         this.userData = null;

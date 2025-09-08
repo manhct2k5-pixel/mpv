@@ -3,7 +3,8 @@ class AuthManager {
     constructor() {
         // Use same-origin when served over http(s), fallback to localhost when opened from file://
         const isHttpOrigin = /^https?:\/\//i.test(window.location.origin);
-        this.API_BASE_URL = isHttpOrigin ? '/api' : 'http://localhost:5000/api';
+        const fromConfig = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : null;
+        this.API_BASE_URL = fromConfig || (isHttpOrigin ? '/api' : 'http://localhost:5000/api');
         this.currentTab = 'login';
         this.isLoading = false;
         

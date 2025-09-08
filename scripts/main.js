@@ -7,6 +7,10 @@ class WealthWalletApp {
     constructor() {
         this.elements = {};
         this.isLoading = true;
+        // Compute API base URL for homepage actions (e.g., logout)
+        const isHttpOrigin = /^https?:\/\//i.test(window.location.origin);
+        const fromConfig = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : null;
+        this.API_BASE_URL = fromConfig || (isHttpOrigin ? '/api' : 'http://localhost:5000/api');
         this.init();
     }
 
@@ -330,7 +334,7 @@ class WealthWalletApp {
             this.setLoadingState(this.elements.logoutBtn, true);
             
             // Call logout API
-            const response = await fetch('/api/logout', {
+            const response = await fetch(`${this.API_BASE_URL}/logout`, {
                 method: 'GET',
                 credentials: 'include'
             });

@@ -126,7 +126,8 @@ class WealthWalletApp {
             });
             
             if (response.ok) {
-                this.userData = await response.json();
+                const data = await response.json();
+                this.userData = data && data.user ? data.user : null;
                 this.displayUserInfo();
             }
         } catch (error) {
@@ -200,28 +201,32 @@ class WealthWalletApp {
         }
     }
 
-    updateFinancialOverview(data) {
+    updateFinancialOverview(apiData) {
+        const overview = apiData && apiData.overview ? apiData.overview : {};
         // Format currency
         const formatCurrency = (amount) => {
             return new Intl.NumberFormat('vi-VN', {
                 style: 'currency',
                 currency: 'VND'
-            }).format(amount);
+            }).format(amount || 0);
         };
 
-        document.getElementById('totalIncome').textContent = formatCurrency(data.totalIncome || 0);
-        document.getElementById('totalExpense').textContent = formatCurrency(data.totalExpense || 0);
-        document.getElementById('currentBalance').textContent = formatCurrency((data.totalIncome || 0) - (data.totalExpense || 0));
+        const income = overview.income || 0;
+        const expense = overview.expense || 0;
+        const balance = income - expense;
 
-        // Update change indicators
-        document.getElementById('incomeChange').textContent = `${data.incomeChange || 0}%`;
-        document.getElementById('expenseChange').textContent = `${data.expenseChange || 0}%`;
-        document.getElementById('balanceChange').textContent = `${data.balanceChange || 0}%`;
+        document.getElementById('totalIncome').textContent = formatCurrency(income);
+        document.getElementById('totalExpense').textContent = formatCurrency(expense);
+        document.getElementById('currentBalance').textContent = formatCurrency(balance);
 
-        // Update change colors
-        this.updateChangeColor('incomeChange', data.incomeChange);
-        this.updateChangeColor('expenseChange', data.expenseChange);
-        this.updateChangeColor('balanceChange', data.balanceChange);
+        // Backend chưa trả change %, tạm để 0
+        document.getElementById('incomeChange').textContent = `0%`;
+        document.getElementById('expenseChange').textContent = `0%`;
+        document.getElementById('balanceChange').textContent = `0%`;
+
+        this.updateChangeColor('incomeChange', 0);
+        this.updateChangeColor('expenseChange', 0);
+        this.updateChangeColor('balanceChange', 0);
     }
 
     updateChangeColor(elementId, value) {
@@ -306,19 +311,19 @@ class WealthWalletApp {
         });
     }
 
-    updateCharts(data) {
+    updateCharts(apiData) {
         // Update finance chart
-        if (data.monthlyData) {
-            this.charts.finance.data.labels = data.monthlyData.labels || [];
-            this.charts.finance.data.datasets[0].data = data.monthlyData.income || [];
-            this.charts.finance.data.datasets[1].data = data.monthlyData.expenses || [];
+        if (apiData && apiData.monthlyData) {
+            this.charts.finance.data.labels = apiData.monthlyData.labels || [];
+            this.charts.finance.data.datasets[0].data = apiData.monthlyData.income || [];
+            this.charts.finance.data.datasets[1].data = apiData.monthlyData.expenses || [];
             this.charts.finance.update();
         }
 
         // Update category chart
-        if (data.categoryData) {
-            this.charts.category.data.labels = data.categoryData.labels || [];
-            this.charts.category.data.datasets[0].data = data.categoryData.values || [];
+        if (apiData && apiData.categoryData) {
+            this.charts.category.data.labels = apiData.categoryData.labels || [];
+            this.charts.category.data.datasets[0].data = apiData.categoryData.values || [];
             this.charts.category.update();
         }
     }

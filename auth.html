@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập - WealthWallet</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles/theme.css">
+    <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="styles/auth.css">
+    <link rel="stylesheet" href="styles/auth-fixes.css">
+    <link rel="stylesheet" href="styles/fixes.css">
+    <link rel="stylesheet" href="styles/emergency.css">
+    <link rel="stylesheet" href="styles/checkbox-fix.css">
+</head>
+<body>
+    <div class="auth-container">
+        <!-- Left side - Branding -->
+        <div class="auth-left">
+            <div class="auth-left-content">
+                <div class="logo-large">
+                    <i class="fas fa-wallet"></i>
+                    <span>WealthWallet</span>
+                </div>
+                <h2>Quản lý tài chính thông minh</h2>
+                <p>Nền tảng quản lý tài chính cá nhân toàn diện với các công cụ phân tích tiên tiến</p>
+                
+                <div class="features">
+                    <div class="feature-item">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Theo dõi thu chi chi tiết</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-bullseye"></i>
+                        <span>Đặt và quản lý mục tiêu tài chính</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Bảo mật dữ liệu tuyệt đối</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-mobile-alt"></i>
+                        <span>Truy cập mọi lúc, mọi nơi</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right side - Auth forms -->
+        <div class="auth-right">
+            <div class="auth-header">
+                <h3>Đăng nhập</h3>
+                <p>Chào mừng bạn quay trở lại với WealthWallet</p>
+            </div>
+
+            <!-- Tab buttons -->
+            <div class="tab-buttons">
+                <button type="button" class="tab-btn active" data-tab="login">Đăng nhập</button>
+                <button type="button" class="tab-btn" data-tab="register">Đăng ký</button>
+            </div>
+
+            <!-- Login Form -->
+            <div class="auth-form active" id="loginForm">
+                <form>
+                    <div class="form-group">
+                        <label for="loginEmail">Email</label>
+                        <input type="email" id="loginEmail" name="loginEmail" class="form-input" placeholder="Nhập địa chỉ email của bạn" required>
+                        <div class="error-message"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="loginPassword">Mật khẩu</label>
+                        <input type="password" id="loginPassword" name="loginPassword" class="form-input" placeholder="Nhập mật khẩu" required>
+                        <div class="error-message"></div>
+                    </div>
+
+                    <div class="form-options">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="rememberMe" name="remember">
+                            <label for="rememberMe">Ghi nhớ đăng nhập</label>
+                        </div>
+                        <a href="#" class="forgot-password">Quên mật khẩu?</a>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Đăng nhập</button>
+                </form>
+
+                <div class="divider">
+                    <span>hoặc</span>
+                </div>
+
+                <div class="social-login">
+                    <button type="button" class="btn btn-google">
+                        <i class="fab fa-google"></i>
+                        Google
+                    </button>
+                    <button type="button" class="btn btn-facebook">
+                        <i class="fab fa-facebook-f"></i>
+                        Facebook
+                    </button>
+                </div>
+
+                <div class="auth-footer">
+                    Chưa có tài khoản? <a href="#" onclick="document.querySelector('[data-tab=register]').click()">Đăng ký ngay</a>
+                </div>
+            </div>
+
+            <!-- Register Form -->
+            <div class="auth-form" id="registerForm">
+                <form>
+                    <div class="form-group">
+                        <label for="name">Họ và tên</label>
+                        <input type="text" id="name" name="name" class="form-input" placeholder="Nhập họ và tên đầy đủ" required>
+                        <div class="error-message"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" class="form-input" placeholder="Nhập địa chỉ email" required>
+                        <div class="error-message"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="registerPassword">Mật khẩu</label>
+                        <input type="password" id="registerPassword" name="password" class="form-input" placeholder="Tạo mật khẩu mạnh" required>
+                        <div class="error-message"></div>
+                        <div class="password-strength">
+                            <div class="strength-bar">
+                                <div class="strength-fill"></div>
+                            </div>
+                            <div class="strength-text"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirmPassword">Xác nhận mật khẩu</label>
+                        <input type="password" id="confirmPassword" name="confirmPassword" class="form-input" placeholder="Nhập lại mật khẩu" required>
+                        <div class="error-message"></div>
+                    </div>
+
+                    <div class="form-options">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="terms" name="terms" required>
+                            <label for="terms">Tôi đồng ý với <a href="#" style="color: var(--primary-color);">Điều khoản sử dụng</a></label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Tạo tài khoản</button>
+                </form>
+
+                <div class="divider">
+                    <span>hoặc</span>
+                </div>
+
+                <div class="social-login">
+                    <button type="button" class="btn btn-google">
+                        <i class="fab fa-google"></i>
+                        Google
+                    </button>
+                    <button type="button" class="btn btn-facebook">
+                        <i class="fab fa-facebook-f"></i>
+                        Facebook
+                    </button>
+                </div>
+
+                <div class="auth-footer">
+                    Đã có tài khoản? <a href="#" onclick="document.querySelector('[data-tab=login]').click()">Đăng nhập</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load debug scripts only when debug is enabled -->
+    <script>
+      (function(){
+        const url = new URL(window.location.href);
+        const debugEnabled = url.searchParams.get('debug') === '1' || localStorage.getItem('debug') === '1';
+        if (debugEnabled) {
+          const s1 = document.createElement('script'); s1.src = 'scripts/quickfix.js'; document.body.appendChild(s1);
+          const s2 = document.createElement('script'); s2.src = 'scripts/auth-debug.js'; document.body.appendChild(s2);
+        }
+      })();
+    </script>
+    <script src="scripts/auth.js"></script>
+    
+    <script>
+    // Fast loading optimization
+    document.addEventListener('DOMContentLoaded', () => {
+        document.body.classList.add('loaded');
+    });
+    
+    // Prevent form resubmission on page refresh
+    if (window.history.replaceState) {
+        window.history.replaceState(null, null, window.location.href);
+    }
+    </script>
+</body>
+</html>

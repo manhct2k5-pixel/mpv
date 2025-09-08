@@ -1,0 +1,163 @@
+/* EMERGENCY QUICK FIX - Make everything clickable immediately */
+@import url('./theme.css');
+
+/* FORCE ALL INTERACTIVE ELEMENTS TO BE CLICKABLE */
+button, 
+.btn, 
+a, 
+input[type="button"], 
+input[type="submit"],
+.nav-menu a,
+.nav-actions a,
+.auth-link,
+.mobile-menu-btn {
+    pointer-events: auto !important;
+    position: relative !important;
+    z-index: 100 !important;
+    cursor: pointer !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+
+/* REMOVE PRELOADER BLOCKING */
+#preloader {
+    pointer-events: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    display: none !important;
+}
+
+/* FIX NAVIGATION SPECIFICALLY */
+.navbar {
+    position: relative !important;
+    z-index: 1000 !important;
+}
+
+.nav-container {
+    position: relative !important;
+    z-index: 1001 !important;
+}
+
+.nav-menu {
+    position: relative !important;
+    z-index: 1002 !important;
+}
+
+.nav-actions {
+    position: relative !important;
+    z-index: 1003 !important;
+}
+
+/* FORCE BUTTON STYLES TO SHOW HOVER EFFECTS */
+.btn:hover,
+button:hover,
+a.btn:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15) !important;
+    transition: all 0.2s ease !important;
+}
+
+.btn:active,
+button:active,
+a.btn:active {
+    transform: translateY(0) !important;
+}
+
+/* REMOVE ANY BLOCKING OVERLAYS */
+.modal-overlay,
+.loading-overlay,
+.backdrop {
+    pointer-events: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+/* FIX MOBILE MENU */
+.mobile-menu-btn {
+    display: block !important;
+    background: none !important;
+    border: none !important;
+    color: white !important;
+    font-size: 1.5rem !important;
+    cursor: pointer !important;
+    z-index: 1005 !important;
+}
+
+@media (max-width: 900px) {
+    .mobile-menu-btn {
+        display: block !important;
+    }
+    
+    .nav-container.active {
+        right: 0 !important;
+        pointer-events: auto !important;
+    }
+}
+
+/* ENSURE LINKS ARE WORKING */
+a {
+    text-decoration: none !important;
+    color: inherit !important;
+}
+
+a:hover {
+    opacity: 0.8 !important;
+}
+
+/* FIX ANY LOADING STATES */
+.loading {
+    pointer-events: none !important;
+}
+
+.loading::after {
+    display: none !important;
+}
+
+/* FORCE VISIBILITY FOR IMPORTANT ELEMENTS */
+#guestActions,
+#userProfile,
+.nav-menu,
+.nav-actions {
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* EMERGENCY DEBUGGING */
+.debug-clickable {
+    border: 2px solid red !important;
+    background: rgba(255, 0, 0, 0.1) !important;
+}
+
+/* REMOVE ANY TRANSFORM THAT MIGHT BLOCK CLICKS */
+* {
+    -webkit-transform: none !important;
+    -moz-transform: none !important;
+    -ms-transform: none !important;
+    transform: none !important;
+}
+
+/* RESTORE TRANSFORMS FOR HOVER EFFECTS ONLY */
+.btn:hover,
+button:hover {
+    -webkit-transform: translateY(-2px) !important;
+    -moz-transform: translateY(-2px) !important;
+    -ms-transform: translateY(-2px) !important;
+    transform: translateY(-2px) !important;
+}
+
+/* ENSURE SCROLL TO TOP BUTTON IS CLICKABLE */
+#scrollToTopBtn {
+    pointer-events: auto !important;
+    z-index: 2000 !important;
+    position: fixed !important;
+    bottom: 20px !important;
+    right: 20px !important;
+    display: block !important;
+    cursor: pointer !important;
+}
+
+/* MAKE SURE FOOTER LINKS WORK */
+footer a {
+    pointer-events: auto !important;
+    z-index: 10 !important;
+}

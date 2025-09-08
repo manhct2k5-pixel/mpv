@@ -1,0 +1,421 @@
+{
+    "m2@gmail.com": {},
+    "admin@wealthwallet.com": [
+        {
+            "id": "admin@wealthwallet.com_budget_1",
+            "category": "Mua sắm",
+            "amount": 4983878,
+            "period": "monthly",
+            "created_at": "2025-08-06T14:41:46.258112"
+        },
+        {
+            "id": "admin@wealthwallet.com_budget_2",
+            "category": "Giáo dục",
+            "amount": 2523082,
+            "period": "monthly",
+            "created_at": "2025-07-28T14:41:46.258116"
+        },
+        {
+            "id": "admin@wealthwallet.com_budget_3",
+            "category": "Khác",
+            "amount": 3144136,
+            "period": "monthly",
+            "created_at": "2025-07-01T14:41:46.258120"
+        },
+        {
+            "id": "admin@wealthwallet.com_budget_4",
+            "category": "Đi lại",
+            "amount": 4390240,
+            "period": "monthly",
+            "created_at": "2025-06-13T14:41:46.258122"
+        },
+        {
+            "id": "admin@wealthwallet.com_budget_5",
+            "category": "Ăn uống",
+            "amount": 4406825,
+            "period": "monthly",
+            "created_at": "2025-07-09T14:41:46.258126"
+        },
+        {
+            "id": "admin@wealthwallet.com_budget_6",
+            "category": "Y tế",
+            "amount": 1332322,
+            "period": "monthly",
+            "created_at": "2025-07-20T14:41:46.258129"
+        }
+    ],
+    "nguyen.van.a@gmail.com": [
+        {
+            "id": "nguyen.van.a@gmail.com_budget_1",
+            "category": "Ăn uống",
+            "amount": 3164321,
+            "period": "monthly",
+            "created_at": "2025-07-09T14:41:46.378620"
+        },
+        {
+            "id": "nguyen.van.a@gmail.com_budget_2",
+            "category": "Khác",
+            "amount": 1289251,
+            "period": "monthly",
+            "created_at": "2025-06-27T14:41:46.378623"
+        },
+        {
+            "id": "nguyen.van.a@gmail.com_budget_3",
+            "category": "Nhà cửa",
+            "amount": 1452314,
+            "period": "monthly",
+            "created_at": "2025-06-21T14:41:46.378627"
+        },
+        {
+            "id": "nguyen.van.a@gmail.com_budget_4",
+            "category": "Y tế",
+            "amount": 4082173,
+            "period": "monthly",
+            "created_at": "2025-07-23T14:41:46.378629"
+        },
+        {
+            "id": "nguyen.van.a@gmail.com_budget_5",
+            "category": "Giải trí",
+            "amount": 1714125,
+            "period": "monthly",
+            "created_at": "2025-07-06T14:41:46.378632"
+        },
+        {
+            "id": "nguyen.van.a@gmail.com_budget_6",
+            "category": "Mua sắm",
+            "amount": 2629291,
+            "period": "monthly",
+            "created_at": "2025-08-06T14:41:46.378634"
+        }
+    ],
+    "tran.thi.b@gmail.com": [
+        {
+            "id": "tran.thi.b@gmail.com_budget_1",
+            "category": "Y tế",
+            "amount": 1597261,
+            "period": "monthly",
+            "created_at": "2025-07-02T14:41:46.498807"
+        },
+        {
+            "id": "tran.thi.b@gmail.com_budget_2",
+            "category": "Giải trí",
+            "amount": 1918918,
+            "period": "monthly",
+            "created_at": "2025-06-27T14:41:46.498811"
+        },
+        {
+            "id": "tran.thi.b@gmail.com_budget_3",
+            "category": "Giáo dục",
+            "amount": 4620562,
+            "period": "monthly",
+            "created_at": "2025-07-12T14:41:46.498813"
+        }
+    ],
+    "le.minh.c@yahoo.com": [
+        {
+            "id": "le.minh.c@yahoo.com_budget_1",
+            "category": "Giải trí",
+            "amount": 4047764,
+            "period": "monthly",
+            "created_at": "2025-07-05T14:41:46.618157"
+        },
+        {
+            "id": "le.minh.c@yahoo.com_budget_2",
+            "category": "Đi lại",
+            "amount": 3778408,
+            "period": "monthly",
+            "created_at": "2025-07-13T14:41:46.618160"
+        },
+        {
+            "id": "le.minh.c@yahoo.com_budget_3",
+            "category": "Khác",
+            "amount": 2480088,
+            "period": "monthly",
+            "created_at": "2025-06-21T14:41:46.618163"
+        }
+    ],
+    "pham.hong.d@hotmail.com": [
+        {
+            "id": "pham.hong.d@hotmail.com_budget_1",
+            "category": "Y tế",
+            "amount": 1332896,
+            "period": "monthly",
+            "created_at": "2025-07-04T14:41:46.768730"
+        },
+        {
+            "id": "pham.hong.d@hotmail.com_budget_2",
+            "category": "Khác",
+            "amount": 2211469,
+            "period": "monthly",
+            "created_at": "2025-07-30T14:41:46.768735"
+        },
+        {
+            "id": "pham.hong.d@hotmail.com_budget_3",
+            "category": "Ăn uống",
+            "amount": 3135190,
+            "period": "monthly",
+            "created_at": "2025-07-20T14:41:46.768739"
+        },
+        {
+            "id": "pham.hong.d@hotmail.com_budget_4",
+            "category": "Mua sắm",
+            "amount": 3517384,
+            "period": "monthly",
+            "created_at": "2025-07-31T14:41:46.768744"
+        },
+        {
+            "id": "pham.hong.d@hotmail.com_budget_5",
+            "category": "Đi lại",
+            "amount": 3783862,
+            "period": "monthly",
+            "created_at": "2025-07-24T14:41:46.768747"
+        },
+        {
+            "id": "pham.hong.d@hotmail.com_budget_6",
+            "category": "Giáo dục",
+            "amount": 4190960,
+            "period": "monthly",
+            "created_at": "2025-08-09T14:41:46.768751"
+        }
+    ],
+    "hoang.duc.e@gmail.com": [
+        {
+            "id": "hoang.duc.e@gmail.com_budget_1",
+            "category": "Mua sắm",
+            "amount": 2530236,
+            "period": "monthly",
+            "created_at": "2025-07-08T14:41:46.906296"
+        },
+        {
+            "id": "hoang.duc.e@gmail.com_budget_2",
+            "category": "Giáo dục",
+            "amount": 4458645,
+            "period": "monthly",
+            "created_at": "2025-07-13T14:41:46.906299"
+        },
+        {
+            "id": "hoang.duc.e@gmail.com_budget_3",
+            "category": "Nhà cửa",
+            "amount": 3228563,
+            "period": "monthly",
+            "created_at": "2025-06-24T14:41:46.906302"
+        },
+        {
+            "id": "hoang.duc.e@gmail.com_budget_4",
+            "category": "Đi lại",
+            "amount": 4957847,
+            "period": "monthly",
+            "created_at": "2025-08-07T14:41:46.906304"
+        }
+    ],
+    "ceo@techcorp.vn": [
+        {
+            "id": "ceo@techcorp.vn_budget_bảo hiểm",
+            "category": "Bảo hiểm",
+            "amount": 7205343,
+            "period": "monthly",
+            "created_at": "2025-06-19T19:33:23.509082",
+            "alert_percentage": 85
+        },
+        {
+            "id": "ceo@techcorp.vn_budget_y tế",
+            "category": "Y tế",
+            "amount": 5222437,
+            "period": "monthly",
+            "created_at": "2025-06-20T19:33:23.509114",
+            "alert_percentage": 90
+        },
+        {
+            "id": "ceo@techcorp.vn_budget_khác",
+            "category": "Khác",
+            "amount": 8887288,
+            "period": "monthly",
+            "created_at": "2025-06-19T19:33:23.509122",
+            "alert_percentage": 80
+        },
+        {
+            "id": "ceo@techcorp.vn_budget_nhà cửa",
+            "category": "Nhà cửa",
+            "amount": 8496514,
+            "period": "monthly",
+            "created_at": "2025-07-29T19:33:23.509128",
+            "alert_percentage": 80
+        },
+        {
+            "id": "ceo@techcorp.vn_budget_quần áo",
+            "category": "Quần áo",
+            "amount": 2799482,
+            "period": "monthly",
+            "created_at": "2025-07-30T19:33:23.509133",
+            "alert_percentage": 85
+        }
+    ],
+    "bacsi.mai@hospital.vn": [
+        {
+            "id": "bacsi.mai@hospital.vn_budget_ăn uống",
+            "category": "Ăn uống",
+            "amount": 3536110,
+            "period": "monthly",
+            "created_at": "2025-07-24T19:33:23.509849",
+            "alert_percentage": 85
+        },
+        {
+            "id": "bacsi.mai@hospital.vn_budget_bảo hiểm",
+            "category": "Bảo hiểm",
+            "amount": 4377288,
+            "period": "monthly",
+            "created_at": "2025-06-29T19:33:23.509855",
+            "alert_percentage": 90
+        },
+        {
+            "id": "bacsi.mai@hospital.vn_budget_đi lại",
+            "category": "Đi lại",
+            "amount": 1482482,
+            "period": "monthly",
+            "created_at": "2025-07-10T19:33:23.509862",
+            "alert_percentage": 90
+        },
+        {
+            "id": "bacsi.mai@hospital.vn_budget_giáo dục",
+            "category": "Giáo dục",
+            "amount": 7144584,
+            "period": "monthly",
+            "created_at": "2025-06-19T19:33:23.509866",
+            "alert_percentage": 90
+        },
+        {
+            "id": "bacsi.mai@hospital.vn_budget_khác",
+            "category": "Khác",
+            "amount": 7399011,
+            "period": "monthly",
+            "created_at": "2025-06-25T19:33:23.509871",
+            "alert_percentage": 80
+        }
+    ],
+    "luongcong@company.com": [
+        {
+            "id": "luongcong@company.com_budget_ăn uống",
+            "category": "Ăn uống",
+            "amount": 4876269,
+            "period": "monthly",
+            "created_at": "2025-07-04T19:33:23.510411",
+            "alert_percentage": 90
+        },
+        {
+            "id": "luongcong@company.com_budget_khác",
+            "category": "Khác",
+            "amount": 5448716,
+            "period": "monthly",
+            "created_at": "2025-07-27T19:33:23.510417",
+            "alert_percentage": 90
+        },
+        {
+            "id": "luongcong@company.com_budget_nhà cửa",
+            "category": "Nhà cửa",
+            "amount": 6688261,
+            "period": "monthly",
+            "created_at": "2025-06-19T19:33:23.510422",
+            "alert_percentage": 90
+        },
+        {
+            "id": "luongcong@company.com_budget_mua sắm",
+            "category": "Mua sắm",
+            "amount": 7049876,
+            "period": "monthly",
+            "created_at": "2025-08-05T19:33:23.510426",
+            "alert_percentage": 80
+        },
+        {
+            "id": "luongcong@company.com_budget_giáo dục",
+            "category": "Giáo dục",
+            "amount": 4194629,
+            "period": "monthly",
+            "created_at": "2025-07-15T19:33:23.510431",
+            "alert_percentage": 90
+        }
+    ],
+    "startup.founder@gmail.com": [
+        {
+            "id": "startup.founder@gmail.com_budget_đi lại",
+            "category": "Đi lại",
+            "amount": 2890578,
+            "period": "monthly",
+            "created_at": "2025-08-04T19:33:23.511011",
+            "alert_percentage": 85
+        },
+        {
+            "id": "startup.founder@gmail.com_budget_khác",
+            "category": "Khác",
+            "amount": 3622651,
+            "period": "monthly",
+            "created_at": "2025-07-26T19:33:23.511017",
+            "alert_percentage": 85
+        },
+        {
+            "id": "startup.founder@gmail.com_budget_giáo dục",
+            "category": "Giáo dục",
+            "amount": 1480621,
+            "period": "monthly",
+            "created_at": "2025-06-16T19:33:23.511021",
+            "alert_percentage": 85
+        },
+        {
+            "id": "startup.founder@gmail.com_budget_ăn uống",
+            "category": "Ăn uống",
+            "amount": 7510113,
+            "period": "monthly",
+            "created_at": "2025-06-16T19:33:23.511026",
+            "alert_percentage": 85
+        },
+        {
+            "id": "startup.founder@gmail.com_budget_y tế",
+            "category": "Y tế",
+            "amount": 3415595,
+            "period": "monthly",
+            "created_at": "2025-06-28T19:33:23.511030",
+            "alert_percentage": 90
+        }
+    ],
+    "freelancer.design@gmail.com": [
+        {
+            "id": "freelancer.design@gmail.com_budget_quần áo",
+            "category": "Quần áo",
+            "amount": 4594756,
+            "period": "monthly",
+            "created_at": "2025-07-10T19:33:23.511360",
+            "alert_percentage": 85
+        },
+        {
+            "id": "freelancer.design@gmail.com_budget_giải trí",
+            "category": "Giải trí",
+            "amount": 1060515,
+            "period": "monthly",
+            "created_at": "2025-07-01T19:33:23.511365",
+            "alert_percentage": 90
+        },
+        {
+            "id": "freelancer.design@gmail.com_budget_giáo dục",
+            "category": "Giáo dục",
+            "amount": 1117280,
+            "period": "monthly",
+            "created_at": "2025-08-05T19:33:23.511371",
+            "alert_percentage": 90
+        },
+        {
+            "id": "freelancer.design@gmail.com_budget_ăn uống",
+            "category": "Ăn uống",
+            "amount": 7528879,
+            "period": "monthly",
+            "created_at": "2025-07-05T19:33:23.511376",
+            "alert_percentage": 85
+        },
+        {
+            "id": "freelancer.design@gmail.com_budget_nhà cửa",
+            "category": "Nhà cửa",
+            "amount": 4665918,
+            "period": "monthly",
+            "created_at": "2025-07-15T19:33:23.511381",
+            "alert_percentage": 80
+        }
+    ]
+}

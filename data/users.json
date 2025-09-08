@@ -1,0 +1,249 @@
+{
+    "m2@gmail.com": {
+        "name": "Phan Van Manh",
+        "password": "scrypt:32768:8:1$Rtjr2uqXYDQkBpyG$8eacb1b341eb20db1215d114a4da3c187bdcc2a734e3610569f96b3fe39026dfff54602322c28435ac77c0ca623a59ea80e32e6945563c288bd5a2bdadc3478c",
+        "created_at": "2025-09-08T14:11:11.366679"
+    },
+    "admin@wealthwallet.com": {
+        "name": "Admin WealthWallet",
+        "password": "scrypt:32768:8:1$vVOOtpdvxz9CDRpB$2d5651848ed41f8c7e95053ae50c4571352c46f4ceef1eadfc1aaa2b8a5b30b235e9550b19d059b5d0fd18f2b379208c56292b6f840eb8af0b5c11df089f3b10",
+        "created_at": "2024-09-27T14:41:46.257642",
+        "last_login": "2025-08-19T14:41:46.257691",
+        "phone": "0901234567",
+        "bio": "Quản trị viên hệ thống WealthWallet",
+        "monthly_income": 20000000,
+        "savings_target": 30,
+        "financial_goal": "Quản lý hệ thống tài chính hiệu quả",
+        "settings": {
+            "emailTransactions": true,
+            "emailBudget": true,
+            "emailGoals": true,
+            "showPopups": true,
+            "playSound": false,
+            "theme": "dark",
+            "currency": "VND",
+            "dateFormat": "DD/MM/YYYY",
+            "language": "vi"
+        }
+    },
+    "nguyen.van.a@gmail.com": {
+        "name": "Nguyễn Văn A",
+        "password": "scrypt:32768:8:1$X9bUxVdkBDywRTt6$47b337f490fc230730ea985b8331d660ea28ac1967a2bb0a39e08faea159b6c8cc023afa571f56ea5aa63a10560cc25572a1be3cdfc3df8eb2f9bd3793d9ba7c",
+        "created_at": "2025-02-10T14:41:46.378221",
+        "last_login": "2025-08-30T14:41:46.378261",
+        "phone": "0912345678",
+        "bio": "Nhân viên văn phòng tại Hà Nội",
+        "monthly_income": 15000000,
+        "savings_target": 20,
+        "financial_goal": "Mua nhà trong 5 năm tới",
+        "settings": {
+            "emailTransactions": true,
+            "emailBudget": true,
+            "emailGoals": true,
+            "showPopups": true,
+            "playSound": false,
+            "theme": "light",
+            "currency": "VND",
+            "dateFormat": "DD/MM/YYYY",
+            "language": "vi"
+        }
+    },
+    "tran.thi.b@gmail.com": {
+        "name": "Trần Thị B",
+        "password": "scrypt:32768:8:1$DAKUUqraWhmquniE$f3fedc7a63ad05abbd9446d44325b136959aaa78fd3d5633c12f250901d4f8c6746679b0968aaa23124b71f5b257249753caa5a96a1f8371dea84b4955324e64",
+        "created_at": "2024-11-23T14:41:46.498373",
+        "last_login": "2025-08-22T14:41:46.498400",
+        "phone": "0923456789",
+        "bio": "Giáo viên trung học",
+        "monthly_income": 12000000,
+        "savings_target": 25,
+        "financial_goal": "Tiết kiệm cho con em học đại học",
+        "settings": {
+            "emailTransactions": true,
+            "emailBudget": true,
+            "emailGoals": true,
+            "showPopups": true,
+            "playSound": false,
+            "theme": "light",
+            "currency": "VND",
+            "dateFormat": "DD/MM/YYYY",
+            "language": "vi"
+        }
+    },
+    "le.minh.c@yahoo.com": {
+        "name": "Lê Minh C",
+        "password": "scrypt:32768:8:1$ABzlKWMYnBMrRMHO$a18234c98509c1c3b56a86e832a5a86e40ab21394a5d3b2e2f26d83404f236de49c879bdc23ddb4005e14ec18d5eec927aa15cc7065c5c11e9da6808d495d58b",
+        "created_at": "2025-02-01T14:41:46.617856",
+        "last_login": "2025-09-06T14:41:46.617899",
+        "phone": "0934567890",
+        "bio": "Kỹ sư phần mềm",
+        "monthly_income": 25000000,
+        "savings_target": 35,
+        "financial_goal": "Đầu tư bất động sản và chứng khoán",
+        "settings": {
+            "emailTransactions": true,
+            "emailBudget": true,
+            "emailGoals": true,
+            "showPopups": true,
+            "playSound": false,
+            "theme": "light",
+            "currency": "VND",
+            "dateFormat": "DD/MM/YYYY",
+            "language": "vi"
+        }
+    },
+    "pham.hong.d@hotmail.com": {
+        "name": "Phạm Hồng D",
+        "password": "scrypt:32768:8:1$Bq6iOqQgpfIUxYQn$d554fb158427752c437a3603e7b6f09e36842dc91cd687a8cdaebc196bb9183845507bb60099c07c28322d02216e20a34a096a49650f06c53dd47476df17481f",
+        "created_at": "2025-06-16T14:41:46.768109",
+        "last_login": "2025-08-09T14:41:46.768187",
+        "phone": "0945678901",
+        "bio": "Nhân viên marketing",
+        "monthly_income": 18000000,
+        "savings_target": 15,
+        "financial_goal": "Du lịch và trải nghiệm cuộc sống",
+        "settings": {
+            "emailTransactions": true,
+            "emailBudget": true,
+            "emailGoals": true,
+            "showPopups": true,
+            "playSound": false,
+            "theme": "light",
+            "currency": "VND",
+            "dateFormat": "DD/MM/YYYY",
+            "language": "vi"
+        }
+    },
+    "hoang.duc.e@gmail.com": {
+        "name": "Hoàng Đức E",
+        "password": "scrypt:32768:8:1$kbUE3Y9tKdPATf0h$19d8db0da2966e0300613e731b5cc97f5c49d41826db6ec4a181a20646d9a0812186feef7ae7b68d103cd6706cadb37dffaeae935c5e24840425f7921e6e1ed5",
+        "created_at": "2024-10-21T14:41:46.905798",
+        "last_login": "2025-09-08T14:41:46.905842",
+        "phone": "0956789012",
+        "bio": "Sinh viên đại học kinh tế",
+        "monthly_income": 5000000,
+        "savings_target": 40,
+        "financial_goal": "Tích lũy kinh nghiệm quản lý tài chính",
+        "settings": {
+            "emailTransactions": true,
+            "emailBudget": true,
+            "emailGoals": true,
+            "showPopups": true,
+            "playSound": false,
+            "theme": "light",
+            "currency": "VND",
+            "dateFormat": "DD/MM/YYYY",
+            "language": "vi"
+        }
+    },
+    "ceo@techcorp.vn": {
+        "name": "Nguyễn Minh CEO",
+        "password": "scrypt:32768:8:1$Hv7D4rdpthK9NhiN$39bfb6c5a145f360baae6d9ae4f89cc9be39ddad78be6c4c8b8f83c1399f8ca64ea863aa59ba9488304464a72708f4118ca00c1846c7bdac052ec50924373ca1",
+        "created_at": "2024-08-15T10:30:00.000000",
+        "last_login": "2025-09-10T09:15:30.000000",
+        "phone": "0901111111",
+        "bio": "CEO Công ty công nghệ",
+        "monthly_income": 50000000,
+        "savings_target": 40,
+        "financial_goal": "Mở rộng kinh doanh và đầu tư BĐS",
+        "settings": {
+            "emailTransactions": true,
+            "emailBudget": true,
+            "emailGoals": true,
+            "showPopups": true,
+            "playSound": true,
+            "theme": "dark",
+            "currency": "VND",
+            "dateFormat": "DD/MM/YYYY",
+            "language": "vi"
+        }
+    },
+    "bacsi.mai@hospital.vn": {
+        "name": "Dr. Mai Thị Hạnh",
+        "password": "scrypt:32768:8:1$06H9cMacQumfPzLA$ee125b3f007bcb9df011a2c1b0302bf5eed29c6c1dbe1bb220b432a0373bda9bb35d3481919c01170dfa7772381f2798b55e98c888868f8ebab2a61014f660ed",
+        "created_at": "2024-07-20T14:20:00.000000",
+        "last_login": "2025-09-09T18:45:22.000000",
+        "phone": "0902222222",
+        "bio": "Bác sĩ Bệnh viện Đa khoa",
+        "monthly_income": 30000000,
+        "savings_target": 35,
+        "financial_goal": "Mở phòng khám tư nhân",
+        "settings": {
+            "emailTransactions": true,
+            "emailBudget": true,
+            "emailGoals": true,
+            "showPopups": true,
+            "playSound": false,
+            "theme": "light",
+            "currency": "VND",
+            "dateFormat": "DD/MM/YYYY",
+            "language": "vi"
+        }
+    },
+    "luongcong@company.com": {
+        "name": "Trần Công Lương",
+        "password": "scrypt:32768:8:1$rZQAG9AinNyctwxs$caf939c1373769e61687e5c91e14e26c522ed645cc307568f496c9d8da941a1686c108304ad82fb8bef65ee0a9fb95111cc4a5a2874cc9bb57ca02e105120a0b",
+        "created_at": "2024-06-10T08:15:00.000000",
+        "last_login": "2025-09-08T17:30:15.000000",
+        "phone": "0903333333",
+        "bio": "Công nhân xây dựng",
+        "monthly_income": 8000000,
+        "savings_target": 20,
+        "financial_goal": "Mua xe máy và tiết kiệm cho gia đình",
+        "settings": {
+            "emailTransactions": true,
+            "emailBudget": false,
+            "emailGoals": true,
+            "showPopups": true,
+            "playSound": true,
+            "theme": "light",
+            "currency": "VND",
+            "dateFormat": "DD/MM/YYYY",
+            "language": "vi"
+        }
+    },
+    "startup.founder@gmail.com": {
+        "name": "Lê Thanh Startup",
+        "password": "scrypt:32768:8:1$OUErbsGtP92fblfZ$2bc4daee04ab7e4d7dacf843617a02152175f8059a75f329d18248b9bd36a44dc3e2b7cade068e3138458e7fb2a0bdaea62b81ee2a0ea6dc00c58ddc54f0ef60",
+        "created_at": "2024-09-01T12:00:00.000000",
+        "last_login": "2025-09-10T11:20:45.000000",
+        "phone": "0904444444",
+        "bio": "Founder startup công nghệ",
+        "monthly_income": 35000000,
+        "savings_target": 50,
+        "financial_goal": "Gây quỹ Series A cho startup",
+        "settings": {
+            "emailTransactions": true,
+            "emailBudget": true,
+            "emailGoals": true,
+            "showPopups": true,
+            "playSound": true,
+            "theme": "dark",
+            "currency": "VND",
+            "dateFormat": "DD/MM/YYYY",
+            "language": "vi"
+        }
+    },
+    "freelancer.design@gmail.com": {
+        "name": "Phạm Thu Designer",
+        "password": "scrypt:32768:8:1$D2FOZXLjhRJfJ79e$57cd45630c44e602684e2e884db234ac0cbb7488bf96cc635289b6169490f4d0c15c6828012a863abe39767ffa2f9ce01685f6544f7b1d9304a1db20e5317e13",
+        "created_at": "2024-05-15T16:30:00.000000",
+        "last_login": "2025-09-09T20:15:30.000000",
+        "phone": "0905555555",
+        "bio": "Freelancer thiết kế đồ họa",
+        "monthly_income": 22000000,
+        "savings_target": 30,
+        "financial_goal": "Mở studio thiết kế riêng",
+        "settings": {
+            "emailTransactions": true,
+            "emailBudget": true,
+            "emailGoals": true,
+            "showPopups": true,
+            "playSound": false,
+            "theme": "light",
+            "currency": "VND",
+            "dateFormat": "DD/MM/YYYY",
+            "language": "vi"
+        }
+    }
+}

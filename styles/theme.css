@@ -1,0 +1,242 @@
+/**
+ * WealthWallet - Unified Color Theme
+ * Modern, professional color scheme for financial application
+ */
+
+ :root {
+    /* === PRIMARY COLORS === */
+    --primary-50: #f0fdf4;
+    --primary-100: #dcfce7;
+    --primary-200: #bbf7d0;
+    --primary-300: #86efac;
+    --primary-400: #4ade80;
+    --primary-500: #22c55e;   /* Main Primary */
+    --primary-600: #16a34a;   /* Primary Dark */
+    --primary-700: #15803d;
+    --primary-800: #166534;
+    --primary-900: #14532d;
+    
+    /* === SECONDARY COLORS === */
+    --secondary-50: #f8fafc;
+    --secondary-100: #f1f5f9;
+    --secondary-200: #e2e8f0;
+    --secondary-300: #cbd5e1;
+    --secondary-400: #94a3b8;
+    --secondary-500: #64748b;  /* Main Secondary */
+    --secondary-600: #475569;
+    --secondary-700: #334155;
+    --secondary-800: #1e293b;
+    --secondary-900: #0f172a;
+    
+    /* === ACCENT COLORS === */
+    --accent-50: #fefce8;
+    --accent-100: #fef3c7;
+    --accent-200: #fde68a;
+    --accent-300: #fcd34d;
+    --accent-400: #fbbf24;
+    --accent-500: #f59e0b;    /* Main Accent */
+    --accent-600: #d97706;
+    --accent-700: #b45309;
+    --accent-800: #92400e;
+    --accent-900: #78350f;
+    
+    /* === STATUS COLORS === */
+    --success-50: #f0fdf4;
+    --success-100: #dcfce7;
+    --success-500: #22c55e;
+    --success-600: #16a34a;
+    --success-700: #15803d;
+    
+    --warning-50: #fffbeb;
+    --warning-100: #fef3c7;
+    --warning-500: #f59e0b;
+    --warning-600: #d97706;
+    --warning-700: #b45309;
+    
+    --danger-50: #fef2f2;
+    --danger-100: #fee2e2;
+    --danger-500: #ef4444;
+    --danger-600: #dc2626;
+    --danger-700: #b91c1c;
+    
+    --info-50: #eff6ff;
+    --info-100: #dbeafe;
+    --info-500: #3b82f6;
+    --info-600: #2563eb;
+    --info-700: #1d4ed8;
+    
+    /* === MAIN THEME VARIABLES === */
+    --primary-color: var(--primary-500);
+    --primary-dark: var(--primary-600);
+    --primary-light: var(--primary-100);
+    --secondary-color: var(--secondary-500);
+    --accent-color: var(--accent-500);
+    --success-color: var(--success-500);
+    --warning-color: var(--warning-500);
+    --danger-color: var(--danger-500);
+    --info-color: var(--info-500);
+    
+    /* === NEUTRAL COLORS === */
+    --white: #ffffff;
+    --black: #000000;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+    
+    /* === TEXT COLORS === */
+    --text-primary: var(--gray-900);
+    --text-secondary: var(--gray-600);
+    --text-tertiary: var(--gray-500);
+    --text-on-primary: var(--white);
+    --text-on-dark: var(--white);
+    --text-muted: var(--gray-400);
+    
+    /* === BACKGROUND COLORS === */
+    --background-primary: var(--white);
+    --background-secondary: var(--gray-50);
+    --background-tertiary: var(--gray-100);
+    --background-dark: var(--gray-900);
+    --background-overlay: rgba(0, 0, 0, 0.5);
+    
+    /* === BORDER COLORS === */
+    --border-light: var(--gray-200);
+    --border-medium: var(--gray-300);
+    --border-strong: var(--gray-400);
+    --border-primary: var(--primary-color);
+    
+    /* === DESIGN SYSTEM === */
+    --border-radius-none: 0;
+    --border-radius-sm: 4px;
+    --border-radius-base: 8px;
+    --border-radius-md: 12px;
+    --border-radius-lg: 16px;
+    --border-radius-xl: 20px;
+    --border-radius-full: 9999px;
+    
+    /* === SHADOWS === */
+    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-base: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+    --shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
+    --shadow-glow: 0 0 20px rgb(34 197 94 / 0.3);
+    
+    /* === TRANSITIONS === */
+    --transition-fast: 0.15s ease-in-out;
+    --transition-base: 0.2s ease-in-out;
+    --transition-slow: 0.3s ease-in-out;
+    --transition-all: all var(--transition-base);
+    --transition-colors: background-color var(--transition-base), border-color var(--transition-base), color var(--transition-base);
+    --transition-transform: transform var(--transition-base);
+    
+    /* === SPACING === */
+    --space-0: 0;
+    --space-1: 0.25rem;     /* 4px */
+    --space-2: 0.5rem;      /* 8px */
+    --space-3: 0.75rem;     /* 12px */
+    --space-4: 1rem;        /* 16px */
+    --space-5: 1.25rem;     /* 20px */
+    --space-6: 1.5rem;      /* 24px */
+    --space-8: 2rem;        /* 32px */
+    --space-10: 2.5rem;     /* 40px */
+    --space-12: 3rem;       /* 48px */
+    --space-16: 4rem;       /* 64px */
+    --space-20: 5rem;       /* 80px */
+    
+    /* === FONT SIZES === */
+    --text-xs: 0.75rem;     /* 12px */
+    --text-sm: 0.875rem;    /* 14px */
+    --text-base: 1rem;      /* 16px */
+    --text-lg: 1.125rem;    /* 18px */
+    --text-xl: 1.25rem;     /* 20px */
+    --text-2xl: 1.5rem;     /* 24px */
+    --text-3xl: 1.875rem;   /* 30px */
+    --text-4xl: 2.25rem;    /* 36px */
+    --text-5xl: 3rem;       /* 48px */
+    
+    /* === FONT WEIGHTS === */
+    --font-thin: 100;
+    --font-light: 300;
+    --font-normal: 400;
+    --font-medium: 500;
+    --font-semibold: 600;
+    --font-bold: 700;
+    --font-extrabold: 800;
+    --font-black: 900;
+    
+    /* === LINE HEIGHTS === */
+    --leading-tight: 1.25;
+    --leading-snug: 1.375;
+    --leading-normal: 1.5;
+    --leading-relaxed: 1.625;
+    --leading-loose: 2;
+    
+    /* === Z-INDEX === */
+    --z-dropdown: 1000;
+    --z-sticky: 1020;
+    --z-fixed: 1030;
+    --z-modal-backdrop: 1040;
+    --z-modal: 1050;
+    --z-popover: 1060;
+    --z-tooltip: 1070;
+    --z-toast: 1080;
+    
+    /* === GRADIENTS === */
+    --gradient-primary: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
+    --gradient-success: linear-gradient(135deg, var(--success-500) 0%, var(--success-600) 100%);
+    --gradient-warning: linear-gradient(135deg, var(--warning-500) 0%, var(--warning-600) 100%);
+    --gradient-danger: linear-gradient(135deg, var(--danger-500) 0%, var(--danger-600) 100%);
+    --gradient-dark: linear-gradient(135deg, var(--gray-800) 0%, var(--gray-900) 100%);
+    --gradient-light: linear-gradient(135deg, var(--white) 0%, var(--gray-50) 100%);
+    
+    /* === WEALTH-SPECIFIC COLORS === */
+    --wealth-gold: #ffd700;
+    --wealth-silver: #c0c0c0;
+    --wealth-bronze: #cd7f32;
+    --wealth-profit: var(--success-500);
+    --wealth-loss: var(--danger-500);
+    --wealth-neutral: var(--gray-500);
+}
+
+/* === DARK MODE SUPPORT === */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --background-primary: var(--gray-900);
+        --background-secondary: var(--gray-800);
+        --background-tertiary: var(--gray-700);
+        --text-primary: var(--gray-100);
+        --text-secondary: var(--gray-300);
+        --text-tertiary: var(--gray-400);
+        --border-light: var(--gray-700);
+        --border-medium: var(--gray-600);
+        --border-strong: var(--gray-500);
+    }
+}
+
+/* === COMPONENT UTILITIES === */
+.theme-primary { color: var(--primary-color); }
+.theme-success { color: var(--success-color); }
+.theme-warning { color: var(--warning-color); }
+.theme-danger { color: var(--danger-color); }
+.theme-info { color: var(--info-color); }
+
+.bg-primary { background-color: var(--primary-color); }
+.bg-success { background-color: var(--success-color); }
+.bg-warning { background-color: var(--warning-color); }
+.bg-danger { background-color: var(--danger-color); }
+.bg-info { background-color: var(--info-color); }
+
+.border-primary { border-color: var(--primary-color); }
+.border-success { border-color: var(--success-color); }
+.border-warning { border-color: var(--warning-color); }
+.border-danger { border-color: var(--danger-color); }
+.border-info { border-color: var(--info-color); }

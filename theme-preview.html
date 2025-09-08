@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎨 Theme Preview - WealthWallet</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles/theme.css">
+    <link rel="stylesheet" href="styles/components.css">
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background: var(--background-secondary);
+            padding: var(--space-8);
+            line-height: 1.6;
+        }
+        
+        .preview-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            gap: var(--space-8);
+        }
+        
+        .preview-section {
+            background: var(--background-primary);
+            border-radius: var(--border-radius-lg);
+            padding: var(--space-8);
+            box-shadow: var(--shadow-base);
+        }
+        
+        .preview-title {
+            font-size: var(--text-3xl);
+            font-weight: var(--font-bold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-6);
+            text-align: center;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .section-title {
+            font-size: var(--text-xl);
+            font-weight: var(--font-semibold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-4);
+            padding-bottom: var(--space-2);
+            border-bottom: 2px solid var(--primary-100);
+        }
+        
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+        
+        .color-card {
+            text-align: center;
+        }
+        
+        .color-swatch {
+            width: 100%;
+            height: 80px;
+            border-radius: var(--border-radius-base);
+            margin-bottom: var(--space-2);
+            border: 1px solid var(--border-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: var(--font-medium);
+            text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        
+        .color-name {
+            font-weight: var(--font-medium);
+            color: var(--text-primary);
+            margin-bottom: var(--space-1);
+        }
+        
+        .color-value {
+            font-family: monospace;
+            font-size: var(--text-sm);
+            color: var(--text-secondary);
+        }
+        
+        .button-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+        
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: var(--space-6);
+        }
+        
+        .demo-stat {
+            text-align: center;
+        }
+        
+        .demo-nav {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-2);
+            max-width: 250px;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: var(--space-4);
+        }
+    </style>
+</head>
+<body>
+    <div class="preview-container">
+        <div class="preview-section">
+            <h1 class="preview-title">🎨 WealthWallet Unified Theme</h1>
+            <p style="text-align: center; color: var(--text-secondary); font-size: var(--text-lg);">
+                Modern, consistent design system across all pages
+            </p>
+        </div>
+
+        <!-- Color Palette -->
+        <div class="preview-section">
+            <h2 class="section-title">🌈 Color Palette</h2>
+            
+            <h3 style="margin: var(--space-6) 0 var(--space-4); color: var(--text-primary);">Primary Colors</h3>
+            <div class="color-grid">
+                <div class="color-card">
+                    <div class="color-swatch" style="background: var(--primary-500);">Primary</div>
+                    <div class="color-name">Primary</div>
+                    <div class="color-value">#22c55e</div>
+                </div>
+                <div class="color-card">
+                    <div class="color-swatch" style="background: var(--primary-600);">Primary Dark</div>
+                    <div class="color-name">Primary Dark</div>
+                    <div class="color-value">#16a34a</div>
+                </div>
+                <div class="color-card">
+                    <div class="color-swatch" style="background: var(--primary-100); color: var(--text-primary);">Primary Light</div>
+                    <div class="color-name">Primary Light</div>
+                    <div class="color-value">#dcfce7</div>
+                </div>
+            </div>
+
+            <h3 style="margin: var(--space-6) 0 var(--space-4); color: var(--text-primary);">Status Colors</h3>
+            <div class="color-grid">
+                <div class="color-card">
+                    <div class="color-swatch" style="background: var(--success-500);">Success</div>
+                    <div class="color-name">Success</div>
+                    <div class="color-value">#22c55e</div>
+                </div>
+                <div class="color-card">
+                    <div class="color-swatch" style="background: var(--warning-500);">Warning</div>
+                    <div class="color-name">Warning</div>
+                    <div class="color-value">#f59e0b</div>
+                </div>
+                <div class="color-card">
+                    <div class="color-swatch" style="background: var(--danger-500);">Danger</div>
+                    <div class="color-name">Danger</div>
+                    <div class="color-value">#ef4444</div>
+                </div>
+                <div class="color-card">
+                    <div class="color-swatch" style="background: var(--info-500);">Info</div>
+                    <div class="color-name">Info</div>
+                    <div class="color-value">#3b82f6</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="preview-section">
+            <h2 class="section-title">🔘 Buttons</h2>
+            <div class="button-grid">
+                <button class="btn btn-primary">Primary</button>
+                <button class="btn btn-secondary">Secondary</button>
+                <button class="btn btn-success">Success</button>
+                <button class="btn btn-warning">Warning</button>
+                <button class="btn btn-danger">Danger</button>
+                <button class="btn btn-outline">Outline</button>
+            </div>
+            
+            <h3 style="margin: var(--space-6) 0 var(--space-4); color: var(--text-primary);">Button Sizes</h3>
+            <div class="button-grid">
+                <button class="btn btn-primary btn-sm">Small</button>
+                <button class="btn btn-primary">Default</button>
+                <button class="btn btn-primary btn-lg">Large</button>
+            </div>
+        </div>
+
+        <!-- Cards -->
+        <div class="preview-section">
+            <h2 class="section-title">🃏 Cards & Stats</h2>
+            <div class="card-grid">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Card Header</h3>
+                    </div>
+                    <div class="card-body">
+                        <p>This is a standard card with header, body, and footer sections.</p>
+                    </div>
+                    <div class="card-footer">
+                        <button class="btn btn-primary btn-sm">Action</button>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="demo-stat">
+                        <div class="stat-value">₫25,000,000</div>
+                        <div class="stat-label">Total Income</div>
+                    </div>
+                </div>
+                
+                <div class="stat-card success">
+                    <div class="demo-stat">
+                        <div class="stat-value">+12.5%</div>
+                        <div class="stat-label">Growth</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="preview-section">
+            <h2 class="section-title">🧭 Navigation</h2>
+            <div class="demo-nav">
+                <a href="#" class="nav-link active">
+                    <i class="fas fa-home"></i>
+                    <span>Trang chủ</span>
+                </a>
+                <a href="#" class="nav-link">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Thống kê</span>
+                </a>
+                <a href="#" class="nav-link">
+                    <i class="fas fa-wallet"></i>
+                    <span>Ví tiền</span>
+                </a>
+                <a href="#" class="nav-link">
+                    <i class="fas fa-cog"></i>
+                    <span>Cài đặt</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Alerts -->
+        <div class="preview-section">
+            <h2 class="section-title">⚠️ Alerts & Status</h2>
+            <div class="status-grid">
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Giao dịch thành công!</span>
+                </div>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>Ngân sách sắp hết!</span>
+                </div>
+                <div class="alert alert-danger">
+                    <i class="fas fa-times-circle"></i>
+                    <span>Lỗi kết nối!</span>
+                </div>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <span>Thông tin mới!</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Forms -->
+        <div class="preview-section">
+            <h2 class="section-title">📝 Forms</h2>
+            <div style="max-width: 400px;">
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" class="form-input" placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Category</label>
+                    <select class="form-select">
+                        <option>Food & Dining</option>
+                        <option>Transportation</option>
+                        <option>Shopping</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-textarea" rows="3" placeholder="Add your notes here..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Badges -->
+        <div class="preview-section">
+            <h2 class="section-title">🏷️ Badges</h2>
+            <div style="display: flex; gap: var(--space-4); flex-wrap: wrap;">
+                <span class="badge badge-primary">Primary</span>
+                <span class="badge badge-success">Success</span>
+                <span class="badge badge-warning">Warning</span>
+                <span class="badge badge-danger">Danger</span>
+            </div>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="preview-section">
+            <h2 class="section-title">🔗 Quick Links</h2>
+            <div style="display: flex; gap: var(--space-4); justify-content: center; flex-wrap: wrap;">
+                <a href="index.html" class="btn btn-outline">
+                    <i class="fas fa-home"></i> Homepage
+                </a>
+                <a href="auth.html" class="btn btn-outline">
+                    <i class="fas fa-sign-in-alt"></i> Auth Page
+                </a>
+                <a href="app.html" class="btn btn-outline">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a>
+                <a href="testclick.html" class="btn btn-outline">
+                    <i class="fas fa-mouse-pointer"></i> Test Click
+                </a>
+            </div>
+        </div>
+
+        <!-- Summary -->
+        <div class="preview-section" style="text-align: center;">
+            <h2 class="section-title">✅ Theme Features</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); margin-top: var(--space-6);">
+                <div>
+                    <i class="fas fa-palette" style="font-size: var(--text-3xl); color: var(--primary-color); margin-bottom: var(--space-2);"></i>
+                    <h3>Unified Colors</h3>
+                    <p style="color: var(--text-secondary); font-size: var(--text-sm);">Consistent color scheme across all pages</p>
+                </div>
+                <div>
+                    <i class="fas fa-mobile-alt" style="font-size: var(--text-3xl); color: var(--success-color); margin-bottom: var(--space-2);"></i>
+                    <h3>Responsive</h3>
+                    <p style="color: var(--text-secondary); font-size: var(--text-sm);">Mobile-first design approach</p>
+                </div>
+                <div>
+                    <i class="fas fa-bolt" style="font-size: var(--text-3xl); color: var(--warning-color); margin-bottom: var(--space-2);"></i>
+                    <h3>Performance</h3>
+                    <p style="color: var(--text-secondary); font-size: var(--text-sm);">Optimized CSS with CSS variables</p>
+                </div>
+                <div>
+                    <i class="fas fa-universal-access" style="font-size: var(--text-3xl); color: var(--info-color); margin-bottom: var(--space-2);"></i>
+                    <h3>Accessible</h3>
+                    <p style="color: var(--text-secondary); font-size: var(--text-sm);">WCAG compliant design patterns</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Add some interactive demos
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add click effects to demo elements
+            const demoElements = document.querySelectorAll('.btn, .nav-link, .card');
+            demoElements.forEach(el => {
+                el.addEventListener('click', function(e) {
+                    if (this.href && this.href.includes('#')) {
+                        e.preventDefault();
+                    }
+                });
+            });
+
+            console.log('🎨 Theme preview loaded successfully!');
+            console.log('📱 Try resizing the window to test responsiveness');
+            console.log('🖱️ Click on elements to see hover effects');
+        });
+    </script>
+</body>
+</html>

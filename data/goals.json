@@ -1,0 +1,358 @@
+{
+    "m2@gmail.com": [],
+    "admin@wealthwallet.com": [
+        {
+            "id": "admin@wealthwallet.com_goal_1",
+            "name": "Mở quán kinh doanh",
+            "target_amount": 340562026,
+            "saved_amount": 138377159,
+            "target_date": "2027-02-20T14:41:46.258138",
+            "created_at": "2025-07-05T14:41:46.258141",
+            "description": "Mục tiêu mở quán kinh doanh trong tương lai"
+        },
+        {
+            "id": "admin@wealthwallet.com_goal_2",
+            "name": "Mua xe hơi",
+            "target_amount": 375261656,
+            "saved_amount": 1991164,
+            "target_date": "2027-02-07T14:41:46.258760",
+            "created_at": "2025-06-24T14:41:46.258770",
+            "description": "Mục tiêu mua xe hơi trong tương lai"
+        }
+    ],
+    "nguyen.van.a@gmail.com": [
+        {
+            "id": "nguyen.van.a@gmail.com_goal_1",
+            "name": "Mua nhà",
+            "target_amount": 289990675,
+            "saved_amount": 82415035,
+            "target_date": "2027-02-20T14:41:46.378642",
+            "created_at": "2025-07-17T14:41:46.378645",
+            "description": "Mục tiêu mua nhà trong tương lai"
+        },
+        {
+            "id": "nguyen.van.a@gmail.com_goal_2",
+            "name": "Du lịch nước ngoài",
+            "target_amount": 167102071,
+            "saved_amount": 57465718,
+            "target_date": "2027-08-01T14:41:46.378651",
+            "created_at": "2025-05-08T14:41:46.378653",
+            "description": "Mục tiêu du lịch nước ngoài trong tương lai"
+        },
+        {
+            "id": "nguyen.van.a@gmail.com_goal_3",
+            "name": "Học thêm khóa học",
+            "target_amount": 82628350,
+            "saved_amount": 23788489,
+            "target_date": "2030-03-15T14:41:46.378657",
+            "created_at": "2025-07-20T14:41:46.378659",
+            "description": "Mục tiêu học thêm khóa học trong tương lai"
+        }
+    ],
+    "tran.thi.b@gmail.com": [
+        {
+            "id": "tran.thi.b@gmail.com_goal_1",
+            "name": "Mở quán kinh doanh",
+            "target_amount": 482644841,
+            "saved_amount": 3520094,
+            "target_date": "2027-06-11T14:41:46.498820",
+            "created_at": "2025-03-18T14:41:46.498823",
+            "description": "Mục tiêu mở quán kinh doanh trong tương lai"
+        },
+        {
+            "id": "tran.thi.b@gmail.com_goal_2",
+            "name": "Mua nhà",
+            "target_amount": 378797175,
+            "saved_amount": 122468945,
+            "target_date": "2028-03-08T14:41:46.498829",
+            "created_at": "2025-03-26T14:41:46.498831",
+            "description": "Mục tiêu mua nhà trong tương lai"
+        }
+    ],
+    "le.minh.c@yahoo.com": [
+        {
+            "id": "le.minh.c@yahoo.com_goal_1",
+            "name": "Mở quán kinh doanh",
+            "target_amount": 263505809,
+            "saved_amount": 128290892,
+            "target_date": "2027-10-23T14:41:46.618170",
+            "created_at": "2025-04-23T14:41:46.618172",
+            "description": "Mục tiêu mở quán kinh doanh trong tương lai"
+        },
+        {
+            "id": "le.minh.c@yahoo.com_goal_2",
+            "name": "Tích lũy khẩn cấp",
+            "target_amount": 321481364,
+            "saved_amount": 89470700,
+            "target_date": "2027-03-29T14:41:46.618179",
+            "created_at": "2025-04-25T14:41:46.618181",
+            "description": "Mục tiêu tích lũy khẩn cấp trong tương lai"
+        },
+        {
+            "id": "le.minh.c@yahoo.com_goal_3",
+            "name": "Học thêm khóa học",
+            "target_amount": 400642609,
+            "saved_amount": 29460353,
+            "target_date": "2027-07-04T14:41:46.618184",
+            "created_at": "2025-08-09T14:41:46.618186",
+            "description": "Mục tiêu học thêm khóa học trong tương lai"
+        },
+        {
+            "id": "le.minh.c@yahoo.com_goal_4",
+            "name": "Đầu tư chứng khoán",
+            "target_amount": 106528918,
+            "saved_amount": 21435069,
+            "target_date": "2028-07-08T14:41:46.618190",
+            "created_at": "2025-06-08T14:41:46.618191",
+            "description": "Mục tiêu đầu tư chứng khoán trong tương lai"
+        }
+    ],
+    "pham.hong.d@hotmail.com": [
+        {
+            "id": "pham.hong.d@hotmail.com_goal_1",
+            "name": "Tích lũy khẩn cấp",
+            "target_amount": 273034917,
+            "saved_amount": 45759703,
+            "target_date": "2030-03-11T14:41:46.768762",
+            "created_at": "2025-03-25T14:41:46.768765",
+            "description": "Mục tiêu tích lũy khẩn cấp trong tương lai"
+        },
+        {
+            "id": "pham.hong.d@hotmail.com_goal_2",
+            "name": "Mua nhà",
+            "target_amount": 427473143,
+            "saved_amount": 188346908,
+            "target_date": "2029-01-18T14:41:46.768774",
+            "created_at": "2025-07-29T14:41:46.768777",
+            "description": "Mục tiêu mua nhà trong tương lai"
+        },
+        {
+            "id": "pham.hong.d@hotmail.com_goal_3",
+            "name": "Mở quán kinh doanh",
+            "target_amount": 77000092,
+            "saved_amount": 21880046,
+            "target_date": "2028-05-04T14:41:46.768782",
+            "created_at": "2025-04-14T14:41:46.768785",
+            "description": "Mục tiêu mở quán kinh doanh trong tương lai"
+        },
+        {
+            "id": "pham.hong.d@hotmail.com_goal_4",
+            "name": "Mua xe hơi",
+            "target_amount": 427075071,
+            "saved_amount": 195167774,
+            "target_date": "2030-04-27T14:41:46.768791",
+            "created_at": "2025-05-29T14:41:46.768794",
+            "description": "Mục tiêu mua xe hơi trong tương lai"
+        }
+    ],
+    "hoang.duc.e@gmail.com": [
+        {
+            "id": "hoang.duc.e@gmail.com_goal_1",
+            "name": "Mở quán kinh doanh",
+            "target_amount": 159747988,
+            "saved_amount": 68307751,
+            "target_date": "2028-03-24T14:41:46.906311",
+            "created_at": "2025-07-06T14:41:46.906314",
+            "description": "Mục tiêu mở quán kinh doanh trong tương lai"
+        },
+        {
+            "id": "hoang.duc.e@gmail.com_goal_2",
+            "name": "Đầu tư chứng khoán",
+            "target_amount": 480470611,
+            "saved_amount": 27906696,
+            "target_date": "2029-11-10T14:41:46.906320",
+            "created_at": "2025-04-08T14:41:46.906322",
+            "description": "Mục tiêu đầu tư chứng khoán trong tương lai"
+        },
+        {
+            "id": "hoang.duc.e@gmail.com_goal_3",
+            "name": "Mua nhà",
+            "target_amount": 384695955,
+            "saved_amount": 143320330,
+            "target_date": "2029-08-28T14:41:46.906325",
+            "created_at": "2025-07-19T14:41:46.906327",
+            "description": "Mục tiêu mua nhà trong tương lai"
+        },
+        {
+            "id": "hoang.duc.e@gmail.com_goal_4",
+            "name": "Học thêm khóa học",
+            "target_amount": 278386397,
+            "saved_amount": 11176343,
+            "target_date": "2028-04-13T14:41:46.906330",
+            "created_at": "2025-04-28T14:41:46.906332",
+            "description": "Mục tiêu học thêm khóa học trong tương lai"
+        }
+    ],
+    "ceo@techcorp.vn": [
+        {
+            "id": "ceo@techcorp.vn_goal_1",
+            "name": "Tích lũy khẩn cấp",
+            "target_amount": 80441637,
+            "current_amount": 5224012,
+            "target_date": "2027-06-29T19:33:23.509169",
+            "created_at": "2025-04-17T19:33:23.509174",
+            "category": "Gia đình"
+        },
+        {
+            "id": "ceo@techcorp.vn_goal_2",
+            "name": "Mua xe ô tô",
+            "target_amount": 431721372,
+            "current_amount": 34587230,
+            "target_date": "2026-11-13T19:33:23.509183",
+            "created_at": "2025-05-12T19:33:23.509187",
+            "category": "Sự nghiệp"
+        },
+        {
+            "id": "ceo@techcorp.vn_goal_3",
+            "name": "Học MBA",
+            "target_amount": 28884416,
+            "current_amount": 3102872,
+            "target_date": "2028-01-20T19:33:23.509193",
+            "created_at": "2025-07-01T19:33:23.509196",
+            "category": "Sự nghiệp"
+        }
+    ],
+    "bacsi.mai@hospital.vn": [
+        {
+            "id": "bacsi.mai@hospital.vn_goal_1",
+            "name": "Học MBA",
+            "target_amount": 195801350,
+            "current_amount": 72398821,
+            "target_date": "2028-06-14T19:33:23.509883",
+            "created_at": "2025-07-26T19:33:23.509886",
+            "category": "Sự nghiệp"
+        },
+        {
+            "id": "bacsi.mai@hospital.vn_goal_2",
+            "name": "Mua xe ô tô",
+            "target_amount": 148583663,
+            "current_amount": 10892149,
+            "target_date": "2028-03-24T19:33:23.509892",
+            "created_at": "2025-04-10T19:33:23.509895",
+            "category": "Giải trí"
+        },
+        {
+            "id": "bacsi.mai@hospital.vn_goal_3",
+            "name": "Tích lũy khẩn cấp",
+            "target_amount": 148375563,
+            "current_amount": 62202859,
+            "target_date": "2028-03-23T19:33:23.509900",
+            "created_at": "2025-05-17T19:33:23.509903",
+            "category": "Gia đình"
+        },
+        {
+            "id": "bacsi.mai@hospital.vn_goal_4",
+            "name": "Du lịch Nhật Bản",
+            "target_amount": 141632735,
+            "current_amount": 24528936,
+            "target_date": "2027-09-11T19:33:23.509909",
+            "created_at": "2025-03-14T19:33:23.509911",
+            "category": "Sự nghiệp"
+        }
+    ],
+    "luongcong@company.com": [
+        {
+            "id": "luongcong@company.com_goal_1",
+            "name": "Mua nhà",
+            "target_amount": 131821831,
+            "current_amount": 63440427,
+            "target_date": "2028-08-27T19:33:23.510441",
+            "created_at": "2025-05-07T19:33:23.510444",
+            "category": "Giải trí"
+        },
+        {
+            "id": "luongcong@company.com_goal_2",
+            "name": "Wedding fund",
+            "target_amount": 215310038,
+            "current_amount": 15528561,
+            "target_date": "2027-04-29T19:33:23.510449",
+            "created_at": "2025-06-21T19:33:23.510452",
+            "category": "Sự nghiệp"
+        },
+        {
+            "id": "luongcong@company.com_goal_3",
+            "name": "Du lịch Nhật Bản",
+            "target_amount": 344576136,
+            "current_amount": 88939148,
+            "target_date": "2026-12-09T19:33:23.510459",
+            "created_at": "2025-08-06T19:33:23.510461",
+            "category": "Gia đình"
+        },
+        {
+            "id": "luongcong@company.com_goal_4",
+            "name": "Mua xe ô tô",
+            "target_amount": 103900683,
+            "current_amount": 15394442,
+            "target_date": "2028-01-27T19:33:23.510467",
+            "created_at": "2025-06-24T19:33:23.510469",
+            "category": "Gia đình"
+        }
+    ],
+    "startup.founder@gmail.com": [
+        {
+            "id": "startup.founder@gmail.com_goal_1",
+            "name": "Tích lũy khẩn cấp",
+            "target_amount": 431900365,
+            "current_amount": 56959790,
+            "target_date": "2027-11-07T19:33:23.511040",
+            "created_at": "2025-03-30T19:33:23.511043",
+            "category": "Sự nghiệp"
+        },
+        {
+            "id": "startup.founder@gmail.com_goal_2",
+            "name": "Du lịch Nhật Bản",
+            "target_amount": 290458867,
+            "current_amount": 16445218,
+            "target_date": "2027-01-11T19:33:23.511049",
+            "created_at": "2025-08-01T19:33:23.511052",
+            "category": "Gia đình"
+        },
+        {
+            "id": "startup.founder@gmail.com_goal_3",
+            "name": "Wedding fund",
+            "target_amount": 112847180,
+            "current_amount": 21875523,
+            "target_date": "2027-06-12T19:33:23.511057",
+            "created_at": "2025-05-26T19:33:23.511060",
+            "category": "Gia đình"
+        },
+        {
+            "id": "startup.founder@gmail.com_goal_4",
+            "name": "Đầu tư chứng khoán",
+            "target_amount": 428395241,
+            "current_amount": 241357935,
+            "target_date": "2027-07-23T19:33:23.511065",
+            "created_at": "2025-04-30T19:33:23.511068",
+            "category": "Sự nghiệp"
+        }
+    ],
+    "freelancer.design@gmail.com": [
+        {
+            "id": "freelancer.design@gmail.com_goal_1",
+            "name": "Du lịch Nhật Bản",
+            "target_amount": 434873996,
+            "current_amount": 169031864,
+            "target_date": "2028-03-02T19:33:23.511392",
+            "created_at": "2025-08-08T19:33:23.511395",
+            "category": "Cá nhân"
+        },
+        {
+            "id": "freelancer.design@gmail.com_goal_2",
+            "name": "Đầu tư chứng khoán",
+            "target_amount": 365591843,
+            "current_amount": 93261847,
+            "target_date": "2028-02-01T19:33:23.511400",
+            "created_at": "2025-03-20T19:33:23.511403",
+            "category": "Gia đình"
+        },
+        {
+            "id": "freelancer.design@gmail.com_goal_3",
+            "name": "Thiết bị công nghệ",
+            "target_amount": 377866288,
+            "current_amount": 71105222,
+            "target_date": "2027-07-18T19:33:23.511409",
+            "created_at": "2025-05-13T19:33:23.511411",
+            "category": "Giải trí"
+        }
+    ]
+}

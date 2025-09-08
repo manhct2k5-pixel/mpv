@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WealthWallet - Quản lý tài chính</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles/theme.css">
+    <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="styles/app.css">
+    <link rel="stylesheet" href="styles/fixes.css">
+    <link rel="stylesheet" href="styles/emergency.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="loading-spinner">
+            <i class="fas fa-wallet"></i>
+            <p>Đang tải...</p>
+        </div>
+    </div>
+
+    <div class="app-container" id="app-container" style="display: none;">
+        <!-- Header với user profile cải thiện -->
+        <header class="app-header">
+            <div class="header-left">
+                <button class="sidebar-toggle" id="sidebarToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <a href="index.html" class="logo">
+                    <i class="fas fa-wallet"></i>
+                    <span>WealthWallet</span>
+                </a>
+            </div>
+            
+            <div class="header-right">
+                <!-- Notifications -->
+                <div class="notifications">
+                    <button class="notification-btn" id="notificationBtn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge" id="notificationCount">0</span>
+                    </button>
+                    <div class="notification-dropdown" id="notificationDropdown">
+                        <div class="notification-header">
+                            <h3>Thông báo</h3>
+                            <button class="mark-all-read" id="markAllRead">Đánh dấu đã đọc</button>
+                        </div>
+                        <div class="notification-list" id="notificationList">
+                            <!-- Notifications sẽ được load bằng JS -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- User Profile Dropdown (cải thiện) -->
+                <div class="user-profile" id="userProfile">
+                    <div class="user-info" id="userInfo">
+                        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=40&h=40&fit=crop&crop=face" 
+                             alt="Avatar" class="user-avatar" id="userAvatar">
+                        <div class="user-details">
+                            <span class="user-name" id="userName">Người dùng</span>
+                            <span class="user-email" id="userEmail">user@email.com</span>
+                        </div>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="user-dropdown" id="userDropdown">
+                        <a href="#" class="dropdown-item" onclick="showSection('profile')">
+                            <i class="fas fa-user"></i> Hồ sơ cá nhân
+                        </a>
+                        <a href="#" class="dropdown-item" onclick="showSection('settings')">
+                            <i class="fas fa-cog"></i> Cài đặt
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" class="dropdown-item logout-btn" id="logoutBtn">
+                            <i class="fas fa-sign-out-alt"></i> Đăng xuất
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-section="dashboard">
+                    <i class="fas fa-home"></i>
+                    <span>Tổng quan</span>
+                </a>
+                <a href="#" class="nav-item" data-section="transactions">
+                    <i class="fas fa-money-bill-wave"></i>
+                    <span>Thu chi</span>
+                </a>
+                <a href="#" class="nav-item" data-section="analysis">
+                    <i class="fas fa-chart-pie"></i>
+                    <span>Phân tích</span>
+                </a>
+                <a href="#" class="nav-item" data-section="budgets">
+                    <i class="fas fa-wallet"></i>
+                    <span>Ngân sách</span>
+                </a>
+                <a href="#" class="nav-item" data-section="goals">
+                    <i class="fas fa-bullseye"></i>
+                    <span>Mục tiêu</span>
+                </a>
+                <a href="#" class="nav-item" data-section="reports">
+                    <i class="fas fa-file-alt"></i>
+                    <span>Báo cáo</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <!-- Dashboard Section -->
+            <section id="dashboard-section" class="content-section active">
+                <div class="page-header">
+                    <h1>Chào mừng trở lại, <span id="userGreeting">Người dùng</span>!</h1>
+                    <p>Hôm nay là <span id="currentDate"></span></p>
+                </div>
+
+                <div class="financial-overview">
+                    <div class="overview-card income">
+                        <div class="card-icon">
+                            <i class="fas fa-arrow-up"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3>Thu nhập</h3>
+                            <p class="amount" id="totalIncome">0 ₫</p>
+                            <span class="change positive" id="incomeChange">+0%</span>
+                        </div>
+                    </div>
+
+                    <div class="overview-card expense">
+                        <div class="card-icon">
+                            <i class="fas fa-arrow-down"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3>Chi tiêu</h3>
+                            <p class="amount" id="totalExpense">0 ₫</p>
+                            <span class="change negative" id="expenseChange">-0%</span>
+                        </div>
+                    </div>
+
+                    <div class="overview-card balance">
+                        <div class="card-icon">
+                            <i class="fas fa-balance-scale"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3>Số dư</h3>
+                            <p class="amount" id="currentBalance">0 ₫</p>
+                            <span class="change" id="balanceChange">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts cải thiện -->
+                <div class="charts-section">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>Tài chính theo thời gian</h3>
+                            <div class="chart-controls">
+                                <button class="btn btn-small" data-period="week">7 ngày</button>
+                                <button class="btn btn-small active" data-period="month">30 ngày</button>
+                                <button class="btn btn-small" data-period="year">12 tháng</button>
+                            </div>
+                        </div>
+                        <canvas id="financeChart"></canvas>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>Chi tiêu theo danh mục</h3>
+                        </div>
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Profile Section -->
+            <section id="profile-section" class="content-section">
+                <div class="page-header">
+                    <h1>Hồ sơ cá nhân</h1>
+                    <button class="btn btn-primary" id="editProfileBtn">Chỉnh sửa</button>
+                </div>
+                
+                <div class="profile-content">
+                    <div class="profile-card">
+                        <div class="profile-avatar">
+                            <img id="profileAvatar" src="" alt="Avatar">
+                            <button class="change-avatar-btn">
+                                <i class="fas fa-camera"></i>
+                            </button>
+                        </div>
+                        <div class="profile-info">
+                            <div class="info-group">
+                                <label>Họ tên</label>
+                                <input type="text" id="profileName" disabled>
+                            </div>
+                            <div class="info-group">
+                                <label>Email</label>
+                                <input type="email" id="profileEmail" disabled>
+                            </div>
+                            <div class="info-group">
+                                <label>Số điện thoại</label>
+                                <input type="tel" id="profilePhone" disabled>
+                            </div>
+                            <div class="info-group">
+                                <label>Thu nhập hàng tháng</label>
+                                <input type="number" id="profileIncome" disabled>
+                            </div>
+                            <div class="info-group">
+                                <label>Mục tiêu tiết kiệm (%)</label>
+                                <input type="number" id="profileSavingsTarget" disabled>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Other sections sẽ được thêm tương tự -->
+            <section id="transactions-section" class="content-section">
+                <div class="page-header">
+                    <h1>Quản lý thu chi</h1>
+                    <button class="btn btn-primary" id="addTransactionBtn">Thêm giao dịch</button>
+                </div>
+                <!-- Transactions content -->
+            </section>
+
+            <section id="analysis-section" class="content-section">
+                <div class="page-header">
+                    <h1>Phân tích tài chính</h1>
+                </div>
+                <!-- Analysis content -->
+            </section>
+
+            <section id="budgets-section" class="content-section">
+                <div class="page-header">
+                    <h1>Quản lý ngân sách</h1>
+                    <button class="btn btn-primary" id="addBudgetBtn">Thêm ngân sách</button>
+                </div>
+                <!-- Budgets content -->
+            </section>
+
+            <section id="goals-section" class="content-section">
+                <div class="page-header">
+                    <h1>Mục tiêu tài chính</h1>
+                    <button class="btn btn-primary" id="addGoalBtn">Thêm mục tiêu</button>
+                </div>
+                <!-- Goals content -->
+            </section>
+
+            <section id="reports-section" class="content-section">
+                <div class="page-header">
+                    <h1>Báo cáo tài chính</h1>
+                    <button class="btn btn-primary" id="exportReportBtn">Xuất báo cáo</button>
+                </div>
+                <!-- Reports content -->
+            </section>
+
+            <section id="settings-section" class="content-section">
+                <div class="page-header">
+                    <h1>Cài đặt</h1>
+                </div>
+                <!-- Settings content -->
+            </section>
+        </main>
+    </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div id="logoutModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Xác nhận đăng xuất</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Bạn có chắc chắn muốn đăng xuất khỏi WealthWallet?</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelLogout">Hủy</button>
+                <button class="btn btn-danger" id="confirmLogout">Đăng xuất</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="scripts/quickfix.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="scripts/app.js"></script>
+</body>
+</html>

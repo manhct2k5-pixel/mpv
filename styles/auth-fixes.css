@@ -1,0 +1,97 @@
+/* Auth Performance & UX Fixes */
+
+/* Fast loading animations */
+.auth-container {
+    animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Improved form input styling */
+.form-input {
+    /* Prevent text overlap with borders */
+    box-sizing: border-box;
+    position: relative;
+    z-index: 1;
+}
+
+.form-input:focus {
+    /* Smooth focus transition */
+    transition: all 0.2s ease;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+}
+
+/* Enhanced placeholder styling */
+.form-input::placeholder {
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    line-height: 1.4;
+}
+
+/* Google button improvements */
+.btn-google {
+    /* Ensure proper text rendering */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Loading button optimization */
+.btn-loading {
+    pointer-events: none;
+    position: relative;
+}
+
+/* Message animation improvements */
+.success-message, .error-message, .info-message {
+    animation: slideInDown 0.3s ease-out;
+}
+
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Fast transition for tab switching */
+.auth-form {
+    transition: opacity 0.2s ease;
+}
+
+.auth-form.active {
+    animation: fadeInFast 0.2s ease;
+}
+
+@keyframes fadeInFast {
+    from { 
+        opacity: 0; 
+        transform: translateX(-10px);
+    }
+    to { 
+        opacity: 1; 
+        transform: translateX(0);
+    }
+}
+
+/* Prevent flash of unstyled content */
+body {
+    visibility: visible;
+}
+
+body:not(.loaded) {
+    visibility: hidden;
+}

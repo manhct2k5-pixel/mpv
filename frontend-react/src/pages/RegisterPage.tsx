@@ -15,15 +15,25 @@ const RegisterPage = () => {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
-    password: ''
+    password: '',
+    confirmPassword: '',
+    monthlyIncome: ''
   });
   const [agreed, setAgreed] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const registerMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      const response = await api.post('/register', data);
+    mutationFn: async () => {
+      const monthlyIncome = formData.monthlyIncome.trim()
+        ? Number(formData.monthlyIncome.trim())
+        : undefined;
+      const response = await api.post('/register', {
+        fullName: formData.fullName.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+        monthlyIncome: Number.isFinite(monthlyIncome) ? monthlyIncome : undefined
+      });
       return response.data;
     },
     onSuccess: () => {
@@ -45,7 +55,15 @@ const RegisterPage = () => {
       setStatusMessage('Vui lòng đồng ý với điều khoản sử dụng trước khi tiếp tục.');
       return;
     }
-    registerMutation.mutate(formData);
+    if (formData.password.length < 6) {
+      setStatusMessage('Mật khẩu cần ít nhất 6 ký tự.');
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setStatusMessage('Mật khẩu xác nhận chưa khớp.');
+      return;
+    }
+    registerMutation.mutate();
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -72,6 +90,25 @@ const RegisterPage = () => {
       }
     >
       <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="rounded-2xl border-2 border-caramel/30 bg-white/80 p-4">
+          <p className="text-sm font-semibold text-cocoa">Chọn loại tài khoản</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              className="rounded-xl border-2 border-mocha bg-mocha/10 px-3 py-2 text-sm font-semibold text-mocha"
+              aria-pressed="true"
+            >
+              Khách hàng (mua sắm)
+            </button>
+            <Link
+              to="/dang-ky-nguoi-ban"
+              className="rounded-xl border-2 border-caramel/40 bg-white px-3 py-2 text-center text-sm font-semibold text-cocoa transition hover:border-mocha/50 hover:text-mocha"
+            >
+              Người bán (Seller)
+            </Link>
+          </div>
+        </div>
+
         <div className="space-y-2">
           <label htmlFor="fullName" className="text-sm font-medium text-cocoa">
             Họ và tên
@@ -130,6 +167,44 @@ const RegisterPage = () => {
               placeholder="••••••••"
             />
           </div>
+          <p className="text-xs text-cocoa/60">Ít nhất 6 ký tự.</p>
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="confirmPassword" className="text-sm font-medium text-cocoa">
+            Xác nhận mật khẩu
+          </label>
+          <div className="relative">
+            <Lock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-mocha/70" />
+            <input
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              autoComplete="new-password"
+              required
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              className="w-full rounded-2xl border-2 border-caramel/40 bg-white/80 px-12 py-3 text-sm text-cocoa placeholder:text-cocoa/50 focus:border-mocha focus:outline-none focus:ring-2 focus:ring-caramel/40"
+              placeholder="••••••••"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="monthlyIncome" className="text-sm font-medium text-cocoa">
+            Thu nhập tháng (tùy chọn)
+          </label>
+          <input
+            id="monthlyIncome"
+            name="monthlyIncome"
+            type="number"
+            min={0}
+            value={formData.monthlyIncome}
+            onChange={handleChange}
+            className="w-full rounded-2xl border-2 border-caramel/40 bg-white/80 px-4 py-3 text-sm text-cocoa placeholder:text-cocoa/50 focus:border-mocha focus:outline-none focus:ring-2 focus:ring-caramel/40"
+            placeholder="Ví dụ: 12000000"
+          />
+          <p className="text-xs text-cocoa/60">Bạn có thể bỏ trống và cập nhật sau trong tài khoản.</p>
         </div>
 
         <div className="rounded-2xl border-2 border-caramel/30 bg-white/80 p-4 text-sm text-cocoa/80">

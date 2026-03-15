@@ -32,7 +32,11 @@ import {
   VoucherValidationResult
 } from '../types/store';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL?.trim() ||
+  (import.meta.env.PROD ? 'https://wealthwallet-api.onrender.com/api' : '/api');
+
+const asArray = <T>(value: unknown): T[] => (Array.isArray(value) ? value : []);
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -97,7 +101,7 @@ export const financeApi = {
     province?: string;
     postalCode?: string;
   }) => api.put<UserDefaultAddress>('/user/default-address', payload).then((res) => res.data),
-  addresses: () => api.get<UserAddress[]>('/user/addresses').then((res) => res.data),
+  addresses: () => api.get<UserAddress[]>('/user/addresses').then((res) => asArray<UserAddress>(res.data)),
   createAddress: (payload: {
     fullName: string;
     phone: string;
@@ -183,10 +187,10 @@ export const financeApi = {
 };
 
 export const storeApi = {
-  categories: () => api.get<StoreCategory[]>('/store/categories').then((res) => res.data),
+  categories: () => api.get<StoreCategory[]>('/store/categories').then((res) => asArray<StoreCategory>(res.data)),
   category: (slug: string) => api.get<StoreCategory>(`/store/categories/${slug}`).then((res) => res.data),
   featuredProducts: () =>
-    api.get<StoreProductSummary[]>('/store/products/featured').then((res) => res.data),
+    api.get<StoreProductSummary[]>('/store/products/featured').then((res) => asArray<StoreProductSummary>(res.data)),
   products: (params?: {
     page?: number;
     pageSize?: number;
@@ -254,7 +258,7 @@ export const storeApi = {
   ) => api.post(`/store/products/${productId}/variants`, payload).then((res) => res.data),
   deleteVariant: (productId: number, variantId: number) =>
     api.delete(`/store/products/${productId}/variants/${variantId}`).then((res) => res.data),
-  sellers: () => api.get<StoreSellerSummary[]>('/store/sellers').then((res) => res.data),
+  sellers: () => api.get<StoreSellerSummary[]>('/store/sellers').then((res) => asArray<StoreSellerSummary>(res.data)),
   rateSeller: (sellerId: number, stars: number) =>
     api.post<StoreSellerSummary>(`/store/sellers/${sellerId}/ratings`, { stars }).then((res) => res.data),
   updateSellerProfile: (sellerId: number, payload: {
@@ -268,12 +272,14 @@ export const storeApi = {
     api.get<OrderSummary[]>(`/store/sellers/${sellerId}/orders`).then((res) => res.data),
   sellerProducts: (sellerId: number) =>
     api.get<StoreProductSummary[]>(`/store/sellers/${sellerId}/products`).then((res) => res.data),
-  messagePartners: () => api.get<StoreMessagePartner[]>('/store/messages/partners').then((res) => res.data),
-  messages: (partnerId: number) => api.get<StoreMessage[]>(`/store/messages/${partnerId}`).then((res) => res.data),
+  messagePartners: () =>
+    api.get<StoreMessagePartner[]>('/store/messages/partners').then((res) => asArray<StoreMessagePartner>(res.data)),
+  messages: (partnerId: number) =>
+    api.get<StoreMessage[]>(`/store/messages/${partnerId}`).then((res) => asArray<StoreMessage>(res.data)),
   sendMessage: (partnerId: number, content: string) =>
     api.post<StoreMessage>(`/store/messages/${partnerId}`, { content }).then((res) => res.data),
   supportTickets: (params?: { status?: string; q?: string }) =>
-    api.get<SupportTicket[]>('/store/support-tickets', { params }).then((res) => res.data),
+    api.get<SupportTicket[]>('/store/support-tickets', { params }).then((res) => asArray<SupportTicket>(res.data)),
   supportTicket: (id: number) => api.get<SupportTicket>(`/store/support-tickets/${id}`).then((res) => res.data),
   createSupportTicket: (payload: {
     orderId?: number;
@@ -297,7 +303,7 @@ export const storeApi = {
   commentSupportTicket: (id: number, message: string) =>
     api.post<SupportTicket>(`/store/support-tickets/${id}/comments`, { message }).then((res) => res.data),
   returnRequests: (params?: { status?: string }) =>
-    api.get<ReturnRequest[]>('/store/return-requests', { params }).then((res) => res.data),
+    api.get<ReturnRequest[]>('/store/return-requests', { params }).then((res) => asArray<ReturnRequest>(res.data)),
   returnRequest: (id: number) => api.get<ReturnRequest>(`/store/return-requests/${id}`).then((res) => res.data),
   createReturnRequest: (payload: {
     orderId: number;
@@ -311,7 +317,7 @@ export const storeApi = {
     note?: string;
     evidenceUrl?: string;
   }) => api.put<ReturnRequest>(`/store/return-requests/${id}`, payload).then((res) => res.data),
-  lookbooks: () => api.get<Lookbook[]>('/store/lookbooks').then((res) => res.data),
+  lookbooks: () => api.get<Lookbook[]>('/store/lookbooks').then((res) => asArray<Lookbook>(res.data)),
   lookbook: (id: number) => api.get<Lookbook>(`/store/lookbooks/${id}`).then((res) => res.data),
   createLookbook: (payload: {
     title: string;
@@ -329,10 +335,10 @@ export const storeApi = {
     active?: boolean;
   }) => api.put<Lookbook>(`/store/lookbooks/${id}`, payload).then((res) => res.data),
   deleteLookbook: (id: number) => api.delete(`/store/lookbooks/${id}`).then((res) => res.data),
-  stylists: () => api.get<StylistSummary[]>('/store/stylists').then((res) => res.data),
+  stylists: () => api.get<StylistSummary[]>('/store/stylists').then((res) => asArray<StylistSummary>(res.data)),
   createStylistRequest: (payload: { stylistId: number; note?: string }) =>
     api.post<StylistRequest>('/store/stylist-requests', payload).then((res) => res.data),
-  stylistRequests: () => api.get<StylistRequest[]>('/store/stylist-requests').then((res) => res.data),
+  stylistRequests: () => api.get<StylistRequest[]>('/store/stylist-requests').then((res) => asArray<StylistRequest>(res.data)),
   createProduct: (payload: {
     name: string;
     description?: string | null;
@@ -372,7 +378,7 @@ export const storeApi = {
       quantity: number;
     }[];
   }) => api.post<Order>('/store/orders/manual', payload).then((res) => res.data),
-  wishlist: () => api.get<StoreProductSummary[]>('/store/wishlist').then((res) => res.data),
+  wishlist: () => api.get<StoreProductSummary[]>('/store/wishlist').then((res) => asArray<StoreProductSummary>(res.data)),
   addWishlist: (productId: number) =>
     api.post<StoreProductSummary>(`/store/wishlist/${productId}`).then((res) => res.data),
   removeWishlist: (productId: number) => api.delete(`/store/wishlist/${productId}`).then((res) => res.data),
@@ -420,6 +426,6 @@ export const storeApi = {
     notes?: string;
   }) => api.put<Order>(`/store/orders/${id}`, payload).then((res) => res.data),
   cancelOrder: (id: number) => api.delete(`/store/orders/${id}`).then((res) => res.data),
-  orders: () => api.get<OrderSummary[]>('/store/orders').then((res) => res.data),
+  orders: () => api.get<OrderSummary[]>('/store/orders').then((res) => asArray<OrderSummary>(res.data)),
   order: (id: number) => api.get<Order>(`/store/orders/${id}`).then((res) => res.data)
 };

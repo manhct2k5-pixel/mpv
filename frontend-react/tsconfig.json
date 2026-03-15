@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.node.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "moduleResolution": "bundler",
+    "types": ["vite/client"],
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src"]
+}

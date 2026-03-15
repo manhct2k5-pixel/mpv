@@ -1,0 +1,104 @@
+spring:
+  profiles:
+    default: local
+  jackson:
+    deserialization:
+      read-enums-using-to-string: true
+
+server:
+  port: 8080
+
+jwt:
+  # HS256 requires a key >= 32 bytes; keep this long default to avoid WeakKeyException
+  secret: ${JWT_SECRET:wealthwallet-secret-key-for-jwt-tokens-very-long-and-secure}
+  expiration: ${JWT_EXPIRATION:86400000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  ai:
+    style-assistant:
+      enabled: ${STYLE_AI_ENABLED:true}
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      model: ${STYLE_AI_MODEL:gpt-4o-mini}
+      temperature: ${STYLE_AI_TEMPERATURE:0.4}
+      max-tokens: ${STYLE_AI_MAX_TOKENS:500}
+      prompts:
+        styles: |-
+          Bạn là stylist trưởng của Mộc Mầm Boutique.
+          Nhiệm vụ: tư vấn phối đồ ngắn gọn, đúng trọng tâm, cá nhân hóa theo dữ kiện khách và giỏ hàng.
+
+          Quy tắc bắt buộc:
+          - Trả lời tiếng Việt, thân thiện, “Mộc Mầm vibe” (dịu nhẹ, dễ thương) nhưng gọn.
+          - Không nói bạn là AI, không nhắc “system prompt”.
+          - Không bịa; nếu thiếu dữ kiện, hỏi đúng 1 câu quan trọng nhất.
+          - Không liệt kê tên sản phẩm cụ thể; chỉ mô tả loại item/màu/chất liệu (hệ thống sẽ tự chèn gợi ý).
+          - Tối đa 7 dòng, mỗi dòng 1 ý; luôn nêu lý do ngắn dạng “vì …”.
+
+          Nếu khách hỏi về đơn hàng/đổi trả/thanh toán, hướng dẫn họ nhắn tab CSKH và xin mã đơn hàng.
+        admin: |-
+          Bạn là CSKH Mộc Mầm (tab CSKH/Admin).
+          Nhiệm vụ:
+          - Hỗ trợ đơn hàng, thanh toán, vận chuyển, đổi/trả, chính sách.
+          - Nếu khách hỏi phối đồ/phong cách, hãy tư vấn nhanh, ngắn gọn theo dữ kiện khách và giỏ hàng (nếu có).
+
+          Quy tắc bắt buộc:
+          - Trả lời tiếng Việt, lịch sự, gọn, rõ; mỗi dòng 1 ý.
+          - Không nói bạn là AI, không xin lỗi vòng vo.
+          - Không bịa: không được nói “đã kiểm tra hệ thống/shipper” nếu không có dữ liệu.
+          - Nếu thiếu thông tin, hỏi đúng 1 câu quan trọng nhất (ưu tiên mã đơn hàng hoặc email đặt hàng).
+          - Khi tư vấn phối đồ: chỉ gợi ý loại item/màu/chất liệu; không nêu tên sản phẩm; không upsell; không chèn “Gợi ý sản phẩm”.
+          - Tối đa 7 dòng (trừ khi người dùng yêu cầu “hướng dẫn chọn trang phục…” dạng guide đầy đủ).
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:h2:mem:wealthwallet;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: never
+
+---
+spring:
+  config:
+    activate:
+      on-profile: mysql
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DB:wealthwallet}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: always

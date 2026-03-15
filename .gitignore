@@ -1,46 +1,181 @@
+# ============================================
+# WealthWallet - Professional .gitignore
+# ============================================
+
+# ============================================
 # Python
+# ============================================
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
+*$py.class
 *.so
-*.egg-info/
-.eggs/
-.build/
-.dist/
-
-# Virtual environments
-.env
-.venv
-venv/
+.Python
 env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# IDE/Editor
+# Distribution & Build
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ============================================
+# Flask
+# ============================================
+instance/
+.webassets-cache
+*.db
+*.sqlite
+*.sqlite3
+
+# ============================================
+# Environment & Config
+# ============================================
+.env
+.env.local
+.env.*.local
+config/.env
+config/.env.local
+
+# ============================================
+# IDE & Editors
+# ============================================
 .vscode/
 .idea/
-*.code-workspace
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
 
-# OS files
+# ============================================
+# OS Files
+# ============================================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+Desktop.ini
 
-# Flask/Logs
-instance/
+# ============================================
+# Logs
+# ============================================
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
 
-# Node/Frontend caches
+# ============================================
+# Data Storage
+# ============================================
+data/*.json
+!data/.gitkeep
+data/backups/
+data/exports/
+*.csv
+*.xlsx
+
+# ============================================
+# Backups & Temp Files
+# ============================================
+*.backup
+*.bak
+*.tmp
+temp/
+tmp/
+*.swp
+*.swo
+
+# ============================================
+# Build Output
+# ============================================
+build/
+build/minified/
+frontend/dist/
+backend/dist/
+backend-java/target/
+pw-smoke-tmp/
+
+# ============================================
+# Testing
+# ============================================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.pytest_cache/
+cover/
+
+# ============================================
+# Node.js (if using npm)
+# ============================================
 node_modules/
-*.map
+package-lock.json
+yarn.lock
+npm-debug.log
+yarn-error.log
+frontend-react/node_modules/
+frontend-react/dist/
+frontend-react/.vercel/
+frontend-react/tsconfig.tsbuildinfo
+!frontend-react/package-lock.json
 
-# Local env examples
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# ============================================
+# Deployment
+# ============================================
+.vercel
+.netlify
+.deploy/
+*.pem
+*.key
 
-# Byte-compiled / optimized / DLL files
-pip-log.txt
-pip-delete-this-directory.txt
+# ============================================
+# Production Secrets
+# ============================================
+*.sql
+secret_key.txt
+credentials.json
+service-account.json
 
-# Data (keep JSON in data/ committed as requested)
-# data/  # Uncomment to ignore data if needed later
+# ============================================
+# Project Specific
+# ============================================
+# Old structure files (already moved)
+/pages/
+/styles/
+/scripts/
+
+# Reorganization scripts
+reorganize.py
+cleanup_simple.py
+CLEANUP_DONE.md
+
+# Keep README but ignore old versions
+README_OLD.md
+README.backup

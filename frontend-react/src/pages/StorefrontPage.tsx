@@ -225,7 +225,7 @@ const StorefrontPage = () => {
   };
 
   const handlePromoClick = () => {
-    navigate(isAuthenticated ? '/tai-khoan' : '/register');
+    navigate(isAuthenticated ? '/sale' : '/register');
   };
 
   const categoryCards = categories.length

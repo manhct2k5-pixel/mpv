@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { ArrowRight, Lock, Mail, Sparkles } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronUp, Lock, Mail, Sparkles } from 'lucide-react';
 import AuthLayout from '../components/layout/AuthLayout.tsx';
 import { useAuthStore } from '../store/auth.ts';
 import { api } from '../services/api.ts';
@@ -16,6 +16,7 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
+  const [isDemoExpanded, setIsDemoExpanded] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
@@ -40,10 +41,10 @@ const LoginPage = () => {
                 ? '/staff'
                 : role === 'seller'
                   ? '/seller'
-                  : '/tai-khoan';
+                  : '/';
           setTimeout(() => navigate(nextPath), 400);
         } catch {
-          setTimeout(() => navigate('/tai-khoan'), 400);
+          setTimeout(() => navigate('/'), 400);
         }
       }
     },
@@ -86,27 +87,41 @@ const LoginPage = () => {
     >
       <div className="space-y-5">
         {quickAccounts.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase text-cocoa/60">Tài khoản demo</p>
-            <div className="flex flex-wrap gap-3">
-              {quickAccounts.map((account) => (
-                <button
-                  key={account.label}
-                  type="button"
-                  onClick={() => handleQuickFill(account)}
-                  className="flex-1 rounded-2xl border-2 border-caramel/40 bg-white/70 px-4 py-2 text-xs font-semibold text-cocoa transition hover:-translate-y-0.5 hover:bg-cream"
-                >
-                  Dùng {account.label}
-                </button>
-              ))}
+          <div className="space-y-3 rounded-2xl border-2 border-caramel/30 bg-white/70 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold uppercase text-cocoa/60">Tài khoản demo</p>
               <button
                 type="button"
-                onClick={() => navigate('/dang-ky-nguoi-ban')}
-                className="flex-1 rounded-2xl border-2 border-caramel/40 bg-latte/30 px-4 py-2 text-xs font-semibold text-cocoa transition hover:-translate-y-0.5 hover:bg-latte/50"
+                aria-expanded={isDemoExpanded}
+                aria-controls="demo-accounts-panel"
+                onClick={() => setIsDemoExpanded((prev) => !prev)}
+                className="inline-flex items-center gap-1 rounded-xl border border-caramel/40 bg-white/80 px-3 py-1.5 text-xs font-semibold text-cocoa transition hover:bg-cream"
               >
-                Đăng ký seller
+                {isDemoExpanded ? 'Ẩn tài khoản demo' : 'Mở tài khoản demo'}
+                {isDemoExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
               </button>
             </div>
+            {isDemoExpanded ? (
+              <div id="demo-accounts-panel" className="flex flex-wrap gap-3">
+                {quickAccounts.map((account) => (
+                  <button
+                    key={account.label}
+                    type="button"
+                    onClick={() => handleQuickFill(account)}
+                    className="flex-1 rounded-2xl border-2 border-caramel/40 bg-white/70 px-4 py-2 text-xs font-semibold text-cocoa transition hover:-translate-y-0.5 hover:bg-cream"
+                  >
+                    Dùng {account.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => navigate('/dang-ky-nguoi-ban')}
+                  className="flex-1 rounded-2xl border-2 border-caramel/40 bg-latte/30 px-4 py-2 text-xs font-semibold text-cocoa transition hover:-translate-y-0.5 hover:bg-latte/50"
+                >
+                  Đăng ký seller
+                </button>
+              </div>
+            ) : null}
           </div>
         )}
 

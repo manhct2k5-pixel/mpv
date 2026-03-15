@@ -240,8 +240,12 @@ const StoreLayout = () => {
               </div>
 
               <div className="flex items-center gap-2 lg:hidden">
-                <Link to={isAuthenticated ? '/tai-khoan' : '/login'} className="nav-pill">
+                <Link
+                  to={isAuthenticated ? '/tai-khoan' : '/login'}
+                  className="nav-pill inline-flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold"
+                >
                   <UserRound className="h-4 w-4" />
+                  <span>{isAuthenticated ? 'Tài khoản' : 'Đăng nhập'}</span>
                 </Link>
                 {showCustomerActions ? (
                   <>
@@ -259,8 +263,9 @@ const StoreLayout = () => {
                         </span>
                       ) : null}
                     </button>
-                    <Link to="/gio-hang" className="relative btn-primary btn-primary--icon">
+                    <Link to="/gio-hang" className="relative btn-primary btn-primary--sm inline-flex items-center gap-1.5 px-3">
                       <ShoppingBag className="h-4 w-4" />
+                      <span className="text-[11px] font-semibold leading-none">Giỏ hàng</span>
                       {cartCount > 0 ? (
                         <span className="absolute -right-1.5 -top-1.5 rounded-full bg-mocha px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
                           {cartCount > 99 ? '99+' : cartCount}

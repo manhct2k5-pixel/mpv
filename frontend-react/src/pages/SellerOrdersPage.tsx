@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Boxes, ShieldCheck, Store, Truck } from 'lucide-react';
+import { AlertTriangle, Boxes, Download, Search, ShieldCheck, Store, Truck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { financeApi, storeApi } from '../services/api.ts';
 import { useAuthStore } from '../store/auth.ts';
 import { paymentMethodLabels, paymentStatusLabels } from '../constants/payment.ts';
+import type { OrderSummary } from '../types/store.ts';
 
 type SortOption = 'newest' | 'oldest' | 'total_desc' | 'total_asc';
+type RiskFilter = 'all' | 'unpaid_transfer' | 'stuck_pending' | 'any';
 
 const statusLabels: Record<string, string> = {
   pending: 'Chờ xác nhận',
@@ -30,11 +32,27 @@ const statusTone: Record<string, string> = {
 
 const STATUS_FILTER_OPTIONS = ['all', 'pending', 'processing', 'confirmed', 'packing', 'shipped', 'delivered', 'cancelled'] as const;
 
+const getOrderAgeHours = (createdAt: string) => {
+  const created = new Date(createdAt).getTime();
+  const elapsedMs = Number.isFinite(created) ? Date.now() - created : 0;
+  return Math.max(0, elapsedMs / (1000 * 60 * 60));
+};
+
+const isBankTransferUnpaid = (order: OrderSummary) =>
+  order.paymentMethod.toLowerCase() === 'bank_transfer' && order.paymentStatus.toLowerCase() === 'unpaid';
+
+const isStuckPending = (order: OrderSummary) => {
+  const status = order.status.toLowerCase();
+  return (status === 'pending' || status === 'processing') && getOrderAgeHours(order.createdAt) >= 24;
+};
+
 const SellerOrdersPage = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
+  const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ['profile'],
@@ -53,7 +71,7 @@ const SellerOrdersPage = () => {
   const canViewReports = isAdmin || isSeller;
   const sellerId = profile?.id != null ? Number(profile.id) : null;
 
-  const { data: orders = [], isLoading: ordersLoading } = useQuery({
+  const { data: orders = [], isLoading: ordersLoading } = useQuery<OrderSummary[]>({
     queryKey: ['seller-orders', role, sellerId],
     queryFn: () => (isAdmin ? financeApi.admin.orders() : storeApi.sellerOrders(sellerId as number)),
     enabled: isAuthenticated && canManageOrders && (isAdmin || sellerId != null)
@@ -84,6 +102,11 @@ const SellerOrdersPage = () => {
 
   const unpaidOrders = useMemo(
     () => orders.filter((order) => order.paymentStatus?.toLowerCase() === 'unpaid').length,
+    [orders]
+  );
+
+  const atRiskOrders = useMemo(
+    () => orders.filter((order) => isBankTransferUnpaid(order) || isStuckPending(order)).length,
     [orders]
   );
 
@@ -134,7 +157,23 @@ const SellerOrdersPage = () => {
   const filteredOrders = useMemo(() => {
     let items = [...orders];
     if (statusFilter !== 'all') {
-      items = items.filter((order) => order.status === statusFilter);
+      items = items.filter((order) => order.status.toLowerCase() === statusFilter);
+    }
+
+    if (riskFilter === 'unpaid_transfer') {
+      items = items.filter((order) => isBankTransferUnpaid(order));
+    } else if (riskFilter === 'stuck_pending') {
+      items = items.filter((order) => isStuckPending(order));
+    } else if (riskFilter === 'any') {
+      items = items.filter((order) => isBankTransferUnpaid(order) || isStuckPending(order));
+    }
+
+    const query = searchQuery.trim().toLowerCase();
+    if (query) {
+      items = items.filter((order) => {
+        const haystack = `${order.orderNumber} ${order.id} ${order.status} ${order.paymentMethod} ${order.paymentStatus}`.toLowerCase();
+        return haystack.includes(query);
+      });
     }
 
     switch (sortBy) {
@@ -153,12 +192,40 @@ const SellerOrdersPage = () => {
         break;
     }
     return items;
-  }, [orders, sortBy, statusFilter]);
+  }, [orders, riskFilter, searchQuery, sortBy, statusFilter]);
 
   const formatPrice = (value?: number | null) =>
     value != null ? `${value.toLocaleString('vi-VN')} đ` : '--';
 
   const formatDate = (value: string) => new Date(value).toLocaleString('vi-VN');
+
+  const exportFilteredOrders = () => {
+    if (filteredOrders.length === 0) return;
+    const headers = ['Mã đơn', 'Trạng thái', 'Thanh toán', 'Phương thức', 'Giá trị', 'Số sản phẩm', 'Tạo lúc', 'Rủi ro'];
+    const rows = filteredOrders.map((order) => [
+      order.orderNumber,
+      statusLabels[order.status.toLowerCase()] ?? order.status,
+      paymentStatusLabels[order.paymentStatus] ?? order.paymentStatus,
+      paymentMethodLabels[order.paymentMethod] ?? order.paymentMethod,
+      String(order.total ?? 0),
+      String(order.itemCount ?? 0),
+      formatDate(order.createdAt),
+      isStuckPending(order) ? 'Đơn chờ quá 24h' : isBankTransferUnpaid(order) ? 'Chuyển khoản chưa xác nhận' : 'Không'
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const stamp = new Date().toISOString().slice(0, 10);
+    link.download = `seller-orders-${stamp}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   if (!isAuthenticated) {
     return (
@@ -211,7 +278,7 @@ const SellerOrdersPage = () => {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-2xl border border-caramel/30 bg-white/75 p-4">
             <p className="text-xs text-cocoa/60">Tổng đơn theo phạm vi</p>
             <p className="mt-1 text-2xl font-semibold text-mocha">{(statusCounts.all ?? 0).toLocaleString('vi-VN')}</p>
@@ -227,6 +294,10 @@ const SellerOrdersPage = () => {
           <div className="rounded-2xl border border-caramel/30 bg-white/75 p-4">
             <p className="text-xs text-cocoa/60">Đơn đã giao</p>
             <p className="mt-1 text-2xl font-semibold text-mocha">{(statusCounts.delivered ?? 0).toLocaleString('vi-VN')}</p>
+          </div>
+          <div className="rounded-2xl border border-caramel/30 bg-white/75 p-4">
+            <p className="text-xs text-cocoa/60">Đơn rủi ro</p>
+            <p className="mt-1 text-2xl font-semibold text-rose-700">{atRiskOrders.toLocaleString('vi-VN')}</p>
           </div>
         </div>
 
@@ -249,6 +320,15 @@ const SellerOrdersPage = () => {
             <p className="text-sm font-semibold text-cocoa">
               Kết quả hiển thị: {filteredOrders.length.toLocaleString('vi-VN')} / {orders.length.toLocaleString('vi-VN')} đơn
             </p>
+            <div className="flex items-center gap-2 rounded-xl border border-caramel/40 bg-white/80 px-3 py-2">
+              <Search className="h-4 w-4 text-cocoa/60" />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Tìm mã đơn / ID / trạng thái..."
+                className="w-[220px] bg-transparent text-xs text-cocoa outline-none placeholder:text-cocoa/55"
+              />
+            </div>
             <div className="flex flex-wrap gap-2">
               <select
                 value={statusFilter}
@@ -274,6 +354,20 @@ const SellerOrdersPage = () => {
                 <option value="total_desc">Tổng tiền cao → thấp</option>
                 <option value="total_asc">Tổng tiền thấp → cao</option>
               </select>
+              <select
+                value={riskFilter}
+                onChange={(event) => setRiskFilter(event.target.value as RiskFilter)}
+                className="rounded-xl border border-caramel/40 bg-white/80 px-3 py-2 text-xs font-semibold text-cocoa"
+              >
+                <option value="all">Tất cả rủi ro</option>
+                <option value="any">Đơn có rủi ro</option>
+                <option value="unpaid_transfer">CK chưa xác nhận</option>
+                <option value="stuck_pending">Pending quá 24h</option>
+              </select>
+              <button type="button" onClick={exportFilteredOrders} className="btn-secondary btn-secondary--sm" disabled={filteredOrders.length === 0}>
+                <Download className="h-4 w-4" />
+                Export CSV
+              </button>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -306,8 +400,8 @@ const SellerOrdersPage = () => {
           <div className="space-y-3">
             {filteredOrders.map((order) => {
               const statusKey = order.status.toLowerCase();
-              const isBankTransferUnpaid =
-                order.paymentMethod === 'bank_transfer' && order.paymentStatus === 'unpaid';
+              const bankTransferUnpaid = isBankTransferUnpaid(order);
+              const stuckPending = isStuckPending(order);
               const operationHint = isStaff
                 ? statusKey === 'confirmed'
                   ? 'Đơn đã sẵn sàng đóng gói.'
@@ -315,7 +409,7 @@ const SellerOrdersPage = () => {
                     ? 'Đơn đang đóng gói, có thể bàn giao vận chuyển.'
                     : 'Theo dõi trạng thái để nhận việc tiếp theo.'
                 : isAdmin
-                  ? isBankTransferUnpaid
+                  ? bankTransferUnpaid
                     ? 'Đơn chuyển khoản chưa thanh toán, nên xác nhận trước khi giao.'
                     : 'Theo dõi tiến độ và phối hợp seller/kho khi cần.'
                   : statusKey === 'pending' || statusKey === 'processing'
@@ -333,6 +427,12 @@ const SellerOrdersPage = () => {
                       {paymentMethodLabels[order.paymentMethod] ?? order.paymentMethod} ·{' '}
                       {paymentStatusLabels[order.paymentStatus] ?? order.paymentStatus}
                     </p>
+                    {stuckPending || bankTransferUnpaid ? (
+                      <p className="inline-flex w-fit items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        {stuckPending ? 'Pending quá 24h' : 'CK chưa xác nhận'}
+                      </p>
+                    ) : null}
                     <p className="text-[11px] text-cocoa/55">{operationHint}</p>
                   </div>
 
@@ -349,7 +449,7 @@ const SellerOrdersPage = () => {
 
                   <div className="flex items-center gap-3">
                     <p className="text-sm font-semibold text-mocha">{formatPrice(order.total)}</p>
-                    {!isStaff && isBankTransferUnpaid && (
+                    {!isStaff && bankTransferUnpaid && (
                       <button
                         type="button"
                         className="btn-primary btn-primary--sm"

@@ -4,8 +4,8 @@ services:
     runtime: docker
     plan: free
     rootDir: backend-java
-    dockerfilePath: ./backend-java/Dockerfile
-    dockerContext: ./backend-java
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE

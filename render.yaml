@@ -1,11 +1,11 @@
 services:
   - type: web
     name: wealthwallet-api
-    runtime: java
+    runtime: docker
     plan: free
     rootDir: backend-java
-    buildCommand: mvn -DskipTests clean package
-    startCommand: java -Dserver.port=$PORT -jar target/wealthwallet-api-0.1.0.jar
+    dockerfilePath: ./backend-java/Dockerfile
+    dockerContext: ./backend-java
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE

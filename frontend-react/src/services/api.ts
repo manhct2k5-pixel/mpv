@@ -1,12 +1,38 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/auth.ts';
 import {
+  ADMIN_DEMO_MODE,
+  applyAdminDemoToBusinessRequests,
+  applyAdminDemoToCategories,
+  applyAdminDemoToOrders,
+  applyAdminDemoToProfile,
+  applyAdminDemoToSettings,
+  applyAdminDemoToUsers,
+  approveAdminDemoBusinessRequest,
+  buildAdminDemoDailyReports,
+  buildAdminDemoOverview,
+  confirmAdminDemoOrderPayment,
+  createAdminDemoCategory,
+  createAdminDemoStaff,
+  filterAdminDemoOrders,
+  refundAdminDemoOrder,
+  toggleAdminDemoCategoryActive,
+  updateAdminDemoCategory,
+  updateAdminDemoFlag,
+  updateAdminDemoOrderStatus,
+  updateAdminDemoProfile,
+  updateAdminDemoSettings,
+  updateAdminDemoUserRole,
+  rejectAdminDemoBusinessRequest
+} from './adminDemo.ts';
+import {
   AdminCategory,
   AdminDailyReportPoint,
   AdminUserInsight,
   AdminSystemConfig,
   AdminOverview,
   UserProfile,
+  SellerBusinessRequestPayload,
   UserDefaultAddress,
   UserAddress,
   BusinessRequest
@@ -20,6 +46,7 @@ import {
   ReturnRequest,
   SupportTicket,
   StoreCategory,
+  StorePolicy,
   StoreProductDetail,
   StoreProductSummary,
   StoreSellerSummary,
@@ -29,14 +56,76 @@ import {
   StylistSummary,
   StylistRequest,
   SellerProfile,
-  VoucherValidationResult
+  SellerReview,
+  VoucherValidationResult,
+  StaffOrderWorkState,
+  StaffQcState,
+  StaffShippingDraft,
+  StaffTimelineLog,
+  StaffWaybillState
 } from '../types/store';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.trim() ||
   (import.meta.env.PROD ? 'https://wealthwallet-api.onrender.com/api' : '/api');
 
+const PUBLIC_AUTH_ENDPOINTS = ['/login', '/register', '/register/seller'];
+const PUBLIC_CLIENT_ROUTES = [
+  '/',
+  '/san-pham',
+  '/nu',
+  '/nam',
+  '/phu-kien',
+  '/sale',
+  '/lookbook',
+  '/gioi-thieu',
+  '/login',
+  '/register',
+  '/dang-ky-khach-hang',
+  '/seller/register',
+  '/dang-ky-nguoi-ban'
+];
+
 const asArray = <T>(value: unknown): T[] => (Array.isArray(value) ? value : []);
+
+const isPublicAuthEndpoint = (url?: string) =>
+  typeof url === 'string' && PUBLIC_AUTH_ENDPOINTS.some((endpoint) => url === endpoint || url.endsWith(endpoint));
+
+const isPublicClientRoute = (pathname: string) =>
+  PUBLIC_CLIENT_ROUTES.includes(pathname) ||
+  pathname.startsWith('/san-pham/') ||
+  pathname.startsWith('/lookbook/');
+
+export const getApiErrorMessage = (
+  error: unknown,
+  fallbackMessage: string,
+  options?: {
+    networkMessage?: string;
+    validationMessage?: string;
+  }
+) => {
+  if (!axios.isAxiosError(error)) {
+    return fallbackMessage;
+  }
+
+  const responseMessage = error.response?.data?.message ?? error.response?.data?.error;
+  if (typeof responseMessage === 'string' && responseMessage.trim()) {
+    return responseMessage.trim();
+  }
+
+  if (!error.response) {
+    return (
+      options?.networkMessage ??
+      'Không kết nối được tới máy chủ. Hãy kiểm tra backend đã chạy và cổng API đang đúng.'
+    );
+  }
+
+  if (error.response.status === 400 && options?.validationMessage) {
+    return options.validationMessage;
+  }
+
+  return fallbackMessage;
+};
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -62,9 +151,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status;
-    if (status === 401) {
+    const requestUrl = String(error.config?.url ?? '');
+    if (status === 401 && !isPublicAuthEndpoint(requestUrl)) {
       useAuthStore.getState().logout();
-      window.location.href = '/login';
+      if (!isPublicClientRoute(window.location.pathname) && window.location.pathname !== '/login') {
+        window.location.assign('/login');
+      }
     }
     return Promise.reject(error);
   }
@@ -77,10 +169,68 @@ export interface PaginatedResponse<T> {
   pageSize: number;
 }
 
+const emptyAdminOverview: AdminOverview = {
+  totalUsers: 0,
+  totalCustomers: 0,
+  totalSellers: 0,
+  totalAdmins: 0,
+  totalStaff: 0,
+  pendingBusinessRequests: 0,
+  totalProducts: 0,
+  activeProducts: 0,
+  totalOrders: 0,
+  openOrders: 0,
+  unpaidOrders: 0,
+  flaggedTransactions: 0,
+  grossMerchandiseValue: 0,
+  paidRevenue: 0
+};
+
+const defaultAdminSettings: AdminSystemConfig = {
+  supportEmail: 'support@mocmam.local',
+  supportPhone: '0899 888 123',
+  orderAutoCancelHours: 48,
+  maxRefundDays: 7,
+  allowManualRefund: true,
+  maintenanceMode: false
+};
+
+const fetchBusinessRequestsBase = () =>
+  api.get<BusinessRequest[]>('/admin/business-requests').then((res) => asArray<BusinessRequest>(res.data));
+
+const fetchUserProfileBase = () => api.get<UserProfile>('/user').then((res) => res.data);
+
+const fetchAdminOverviewBase = () => api.get<AdminOverview>('/admin/overview').then((res) => res.data);
+
+const fetchAdminUsersBase = () => api.get<AdminUserInsight[]>('/admin/users').then((res) => asArray<AdminUserInsight>(res.data));
+
+const fetchAdminOrdersBase = (params?: { status?: string; paymentStatus?: string }) =>
+  api.get<OrderSummary[]>('/admin/orders', { params }).then((res) => asArray<OrderSummary>(res.data));
+
+const fetchAdminCategoriesBase = () =>
+  api.get<AdminCategory[]>('/admin/categories').then((res) => asArray<AdminCategory>(res.data));
+
+const fetchAdminSettingsBase = () => api.get<AdminSystemConfig>('/admin/settings').then((res) => res.data);
+
+const toDemoBusinessRequestProfile = (
+  user: AdminUserInsight | null,
+  fallbackId: number,
+  fallbackRole: UserProfile['role']
+): UserProfile => ({
+  id: String(user?.id ?? fallbackId),
+  fullName: user?.fullName ?? `Tài khoản ${fallbackId}`,
+  email: user?.email ?? `user-${fallbackId}@demo.local`,
+  role: (user?.role ?? fallbackRole) as UserProfile['role'],
+  businessRequestPending: false
+});
+
 export const financeApi = {
   logout: () => api.post<{ message: string }>('/logout').then((res) => res.data),
-  me: () => api.get<UserProfile>('/user').then((res) => res.data),
-  updateProfile: (payload: {
+  me: async () => {
+    const profile = await fetchUserProfileBase();
+    return ADMIN_DEMO_MODE ? applyAdminDemoToProfile(profile) : profile;
+  },
+  updateProfile: async (payload: {
     fullName?: string;
     monthlyIncome?: number;
     monthlyExpenseTarget?: number;
@@ -88,7 +238,23 @@ export const financeApi = {
     darkModeEnabled?: boolean;
     emailNotificationEnabled?: boolean;
     autoSyncEnabled?: boolean;
-  }) => api.put('/user', payload).then((res) => res.data),
+  }) => {
+    if (!ADMIN_DEMO_MODE) {
+      return api.put('/user', payload).then((res) => res.data);
+    }
+    const profile = await fetchUserProfileBase();
+    if ((profile.role ?? '').toLowerCase() !== 'admin') {
+      return api.put('/user', payload).then((res) => res.data);
+    }
+    return updateAdminDemoProfile(profile, {
+      fullName: payload.fullName,
+      avatarUrl: payload.avatarUrl,
+      emailNotificationEnabled: payload.emailNotificationEnabled,
+      autoSyncEnabled: payload.autoSyncEnabled
+    });
+  },
+  changePassword: (payload: { currentPassword: string; newPassword: string }) =>
+    api.put<{ message: string }>('/user/password', payload).then((res) => res.data),
   defaultAddress: () => api.get<UserDefaultAddress | null>('/user/default-address').then((res) => res.data),
   saveDefaultAddress: (payload: {
     fullName: string;
@@ -128,65 +294,170 @@ export const financeApi = {
   }) => api.put<UserAddress>(`/user/addresses/${id}`, payload).then((res) => res.data),
   setDefaultAddress: (id: number) => api.put<UserAddress>(`/user/addresses/${id}/default`).then((res) => res.data),
   deleteAddress: (id: number) => api.delete(`/user/addresses/${id}`).then((res) => res.data),
-  requestBusinessAccess: () => api.post<UserProfile>('/user/business-request').then((res) => res.data),
-  businessRequests: () => api.get<BusinessRequest[]>('/admin/business-requests').then((res) => res.data),
-  approveBusinessRequest: (id: number) =>
-    api.post<UserProfile>(`/admin/business-requests/${id}/approve`).then((res) => res.data),
-  rejectBusinessRequest: (id: number) =>
-    api.post<UserProfile>(`/admin/business-requests/${id}/reject`).then((res) => res.data),
+  requestBusinessAccess: (payload: SellerBusinessRequestPayload) =>
+    api.post<UserProfile>('/user/business-request', payload).then((res) => res.data),
+  businessRequests: async () => {
+    const requests = await fetchBusinessRequestsBase();
+    return ADMIN_DEMO_MODE ? applyAdminDemoToBusinessRequests(requests) : requests;
+  },
+  approveBusinessRequest: async (id: number) => {
+    if (!ADMIN_DEMO_MODE) {
+      return api.post<UserProfile>(`/admin/business-requests/${id}/approve`).then((res) => res.data);
+    }
+    const users = await fetchAdminUsersBase();
+    return toDemoBusinessRequestProfile(approveAdminDemoBusinessRequest(users, id), id, 'seller');
+  },
+  rejectBusinessRequest: async (id: number) => {
+    if (!ADMIN_DEMO_MODE) {
+      return api.post<UserProfile>(`/admin/business-requests/${id}/reject`).then((res) => res.data);
+    }
+    const users = await fetchAdminUsersBase();
+    return toDemoBusinessRequestProfile(rejectAdminDemoBusinessRequest(users, id), id, 'user');
+  },
   admin: {
-    overview: () => api.get<AdminOverview>('/admin/overview').then((res) => res.data),
-    users: () => api.get<AdminUserInsight[]>('/admin/users').then((res) => res.data),
-    createStaffAccount: (payload: { fullName: string; email: string; password: string; role: string }) =>
-      api.post<AdminUserInsight>('/admin/staff-accounts', payload).then((res) => res.data),
-    updateUserRole: (id: number, role: string) =>
-      api.put<AdminUserInsight>(`/admin/users/${id}/role`, { role }).then((res) => res.data),
-    flagUser: (email: string, highlight: boolean) =>
-      api
-        .post(`/admin/users/${encodeURIComponent(email)}/flag`, null, { params: { highlight } })
-        .then((res) => res.data),
-    orders: (params?: { status?: string; paymentStatus?: string }) =>
-      api.get<OrderSummary[]>('/admin/orders', { params }).then((res) => res.data),
-    updateOrderStatus: (id: number, status: string) =>
-      api.put<Order>(`/admin/orders/${id}/status`, { status }).then((res) => res.data),
-    confirmOrderPayment: (id: number) =>
-      api.post<Order>(`/admin/orders/${id}/payment/confirm`).then((res) => res.data),
-    refundOrder: (id: number, reason: string) =>
-      api.post<Order>(`/admin/orders/${id}/refund`, { reason }).then((res) => res.data),
-    categories: () => api.get<AdminCategory[]>('/admin/categories').then((res) => res.data),
-    createCategory: (payload: {
+    overview: async () => {
+      if (!ADMIN_DEMO_MODE) {
+        return fetchAdminOverviewBase();
+      }
+      const [baseOverview, baseUsers, baseRequests, baseOrders] = await Promise.all([
+        fetchAdminOverviewBase().catch(() => emptyAdminOverview),
+        fetchAdminUsersBase(),
+        fetchBusinessRequestsBase(),
+        fetchAdminOrdersBase()
+      ]);
+      const users = applyAdminDemoToUsers(baseUsers, baseRequests);
+      const requests = applyAdminDemoToBusinessRequests(baseRequests);
+      const orders = applyAdminDemoToOrders(baseOrders);
+      return buildAdminDemoOverview(baseOverview, users, requests, orders);
+    },
+    users: async () => {
+      if (!ADMIN_DEMO_MODE) {
+        return fetchAdminUsersBase();
+      }
+      const [users, requests] = await Promise.all([fetchAdminUsersBase(), fetchBusinessRequestsBase()]);
+      return applyAdminDemoToUsers(users, requests);
+    },
+    createStaffAccount: async (payload: { fullName: string; email: string; password: string; role: string }) => {
+      if (!ADMIN_DEMO_MODE) {
+        return api.post<AdminUserInsight>('/admin/staff-accounts', payload).then((res) => res.data);
+      }
+      const users = await fetchAdminUsersBase();
+      return createAdminDemoStaff(users, payload);
+    },
+    updateUserRole: async (id: number, role: string) => {
+      if (!ADMIN_DEMO_MODE) {
+        return api.put<AdminUserInsight>(`/admin/users/${id}/role`, { role }).then((res) => res.data);
+      }
+      const users = await fetchAdminUsersBase();
+      return updateAdminDemoUserRole(users, id, role);
+    },
+    flagUser: async (email: string, highlight: boolean) => {
+      if (!ADMIN_DEMO_MODE) {
+        return api
+          .post(`/admin/users/${encodeURIComponent(email)}/flag`, null, { params: { highlight } })
+          .then((res) => res.data);
+      }
+      return updateAdminDemoFlag(email, highlight);
+    },
+    orders: async (params?: { status?: string; paymentStatus?: string }) => {
+      if (!ADMIN_DEMO_MODE) {
+        return fetchAdminOrdersBase(params);
+      }
+      const orders = await fetchAdminOrdersBase();
+      return filterAdminDemoOrders(applyAdminDemoToOrders(orders), params);
+    },
+    updateOrderStatus: async (id: number, status: string) => {
+      if (!ADMIN_DEMO_MODE) {
+        return api.put<Order>(`/admin/orders/${id}/status`, { status }).then((res) => res.data);
+      }
+      const orders = await fetchAdminOrdersBase();
+      return updateAdminDemoOrderStatus(orders, id, status);
+    },
+    confirmOrderPayment: async (id: number) => {
+      if (!ADMIN_DEMO_MODE) {
+        return api.post<Order>(`/admin/orders/${id}/payment/confirm`).then((res) => res.data);
+      }
+      const orders = await fetchAdminOrdersBase();
+      return confirmAdminDemoOrderPayment(orders, id);
+    },
+    refundOrder: async (id: number, reason: string) => {
+      if (!ADMIN_DEMO_MODE) {
+        return api.post<Order>(`/admin/orders/${id}/refund`, { reason }).then((res) => res.data);
+      }
+      const orders = await fetchAdminOrdersBase();
+      return refundAdminDemoOrder(orders, id, reason);
+    },
+    categories: async () => {
+      const categories = await fetchAdminCategoriesBase();
+      return ADMIN_DEMO_MODE ? applyAdminDemoToCategories(categories) : categories;
+    },
+    createCategory: async (payload: {
       name: string;
       slug?: string;
       gender: string;
       description?: string;
       imageUrl?: string;
       active?: boolean;
-    }) => api.post<AdminCategory>('/admin/categories', payload).then((res) => res.data),
-    updateCategory: (id: number, payload: {
+    }) => {
+      if (!ADMIN_DEMO_MODE) {
+        return api.post<AdminCategory>('/admin/categories', payload).then((res) => res.data);
+      }
+      const categories = await fetchAdminCategoriesBase();
+      return createAdminDemoCategory(categories, payload);
+    },
+    updateCategory: async (id: number, payload: {
       name: string;
       slug?: string;
       gender: string;
       description?: string;
       imageUrl?: string;
       active?: boolean;
-    }) => api.put<AdminCategory>(`/admin/categories/${id}`, payload).then((res) => res.data),
-    toggleCategoryActive: (id: number, active: boolean) =>
-      api.put<AdminCategory>(`/admin/categories/${id}/active`, null, { params: { active } }).then((res) => res.data),
-    settings: () => api.get<AdminSystemConfig>('/admin/settings').then((res) => res.data),
-    updateSettings: (payload: {
+    }) => {
+      if (!ADMIN_DEMO_MODE) {
+        return api.put<AdminCategory>(`/admin/categories/${id}`, payload).then((res) => res.data);
+      }
+      const categories = await fetchAdminCategoriesBase();
+      return updateAdminDemoCategory(categories, id, payload);
+    },
+    toggleCategoryActive: async (id: number, active: boolean) => {
+      if (!ADMIN_DEMO_MODE) {
+        return api
+          .put<AdminCategory>(`/admin/categories/${id}/active`, null, { params: { active } })
+          .then((res) => res.data);
+      }
+      const categories = await fetchAdminCategoriesBase();
+      return toggleAdminDemoCategoryActive(categories, id, active);
+    },
+    settings: async () => {
+      const settings = await fetchAdminSettingsBase().catch(() => defaultAdminSettings);
+      return ADMIN_DEMO_MODE ? applyAdminDemoToSettings(settings) : settings;
+    },
+    updateSettings: async (payload: {
       supportEmail?: string;
       supportPhone?: string;
       orderAutoCancelHours?: number;
       maxRefundDays?: number;
       allowManualRefund?: boolean;
       maintenanceMode?: boolean;
-    }) => api.put<AdminSystemConfig>('/admin/settings', payload).then((res) => res.data),
-    reportsDaily: (days = 7) =>
-      api.get<AdminDailyReportPoint[]>('/admin/reports/daily', { params: { days } }).then((res) => res.data)
+    }) => {
+      if (!ADMIN_DEMO_MODE) {
+        return api.put<AdminSystemConfig>('/admin/settings', payload).then((res) => res.data);
+      }
+      const settings = await fetchAdminSettingsBase().catch(() => defaultAdminSettings);
+      return updateAdminDemoSettings(settings, payload);
+    },
+    reportsDaily: async (days = 7) => {
+      if (!ADMIN_DEMO_MODE) {
+        return api.get<AdminDailyReportPoint[]>('/admin/reports/daily', { params: { days } }).then((res) => res.data);
+      }
+      const orders = await fetchAdminOrdersBase();
+      return buildAdminDemoDailyReports(applyAdminDemoToOrders(orders), days);
+    }
   }
 };
 
 export const storeApi = {
+  policy: () => api.get<StorePolicy>('/store/policy').then((res) => res.data),
   categories: () => api.get<StoreCategory[]>('/store/categories').then((res) => asArray<StoreCategory>(res.data)),
   category: (slug: string) => api.get<StoreCategory>(`/store/categories/${slug}`).then((res) => res.data),
   featuredProducts: () =>
@@ -267,9 +538,22 @@ export const storeApi = {
     storePhone?: string | null;
     storeAddress?: string | null;
     storeLogoUrl?: string | null;
+    sellerBankName?: string | null;
+    sellerBankAccountName?: string | null;
+    sellerBankAccountNumber?: string | null;
+    sellerOrderNotificationsEnabled?: boolean;
+    sellerMarketingNotificationsEnabled?: boolean;
+    sellerOperationAlertsEnabled?: boolean;
   }) => api.put<SellerProfile>(`/store/sellers/${sellerId}`, payload).then((res) => res.data),
   sellerOrders: (sellerId: number) =>
     api.get<OrderSummary[]>(`/store/sellers/${sellerId}/orders`).then((res) => res.data),
+  sellerReviews: (sellerId: number) =>
+    api.get<SellerReview[]>(`/store/sellers/${sellerId}/reviews`).then((res) => asArray<SellerReview>(res.data)),
+  updateSellerReviewState: (
+    sellerId: number,
+    reviewId: number,
+    payload: { note?: string | null; replied?: boolean; flagged?: boolean }
+  ) => api.put<SellerReview>(`/store/sellers/${sellerId}/reviews/${reviewId}/state`, payload).then((res) => res.data),
   sellerProducts: (sellerId: number) =>
     api.get<StoreProductSummary[]>(`/store/sellers/${sellerId}/products`).then((res) => res.data),
   messagePartners: () =>
@@ -428,4 +712,25 @@ export const storeApi = {
   cancelOrder: (id: number) => api.delete(`/store/orders/${id}`).then((res) => res.data),
   orders: () => api.get<OrderSummary[]>('/store/orders').then((res) => asArray<OrderSummary>(res.data)),
   order: (id: number) => api.get<Order>(`/store/orders/${id}`).then((res) => res.data)
+};
+
+export const staffApi = {
+  orderWorkStates: () =>
+    api.get<StaffOrderWorkState[]>('/staff/order-work-states').then((res) => asArray<StaffOrderWorkState>(res.data)),
+  orderWorkState: (orderId: number) =>
+    api.get<StaffOrderWorkState>(`/staff/order-work-states/${orderId}`).then((res) => res.data),
+  updateOrderWorkState: (
+    orderId: number,
+    payload: {
+      assigneeName?: string | null;
+      clearAssignee?: boolean;
+      postponed?: boolean;
+      internalNote?: string | null;
+      qc?: Partial<StaffQcState>;
+      shippingDraft?: Partial<StaffShippingDraft>;
+      waybill?: StaffWaybillState | null;
+      clearWaybill?: boolean;
+      timelineLog?: StaffTimelineLog;
+    }
+  ) => api.put<StaffOrderWorkState>(`/staff/order-work-states/${orderId}`, payload).then((res) => res.data)
 };

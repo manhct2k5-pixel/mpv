@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Plus, Search, Trash2 } from 'lucide-react';
 import { financeApi, storeApi } from '../services/api.ts';
 import type { StoreProductDetail, StoreProductVariant } from '../types/store';
+import { buildMissingDeliveryFieldsMessage } from '../utils/orderForms';
 
 type ItemDraft = {
   productSlug: string;
@@ -95,8 +96,8 @@ const StyleOrderItemRow = ({ item, index, onChange, onLoad, onRemove, canRemove 
       >
         <option value="">Chọn biến thể</option>
         {(item.product?.variants ?? []).map((variant: StoreProductVariant) => (
-          <option key={variant.id} value={variant.id}>
-            {variant.size} · {variant.color} · {variant.price.toLocaleString('vi-VN')} đ
+          <option key={variant.id} value={variant.id} disabled={variant.stockQty <= 0}>
+            {variant.size} · {variant.color} · {variant.price.toLocaleString('vi-VN')} đ · tồn {variant.stockQty}
           </option>
         ))}
       </select>
@@ -117,6 +118,21 @@ const StyleOrderItemRow = ({ item, index, onChange, onLoad, onRemove, canRemove 
           <Trash2 className="h-4 w-4" />
         </button>
       )}
+      {item.variantId && item.product ? (
+        <p className="text-xs text-cocoa/60 sm:col-span-4">
+          {(() => {
+            const selectedVariant = item.product?.variants.find(
+              (variant: StoreProductVariant) => String(variant.id) === item.variantId
+            );
+            if (!selectedVariant) {
+              return 'Vui lòng chọn đúng biến thể.';
+            }
+            return selectedVariant.stockQty > 0
+              ? `Còn ${selectedVariant.stockQty} sản phẩm khả dụng cho biến thể này.`
+              : 'Biến thể này đang hết hàng.';
+          })()}
+        </p>
+      ) : null}
     </div>
   );
 };
@@ -128,7 +144,7 @@ const StyleOrderCreatePage = () => {
   });
   const rawRole = (profile?.role ?? '').toLowerCase();
   const role = rawRole === 'styles' ? 'warehouse' : rawRole;
-  const canCreate = role === 'warehouse' || role === 'admin';
+  const canCreate = role === 'admin';
 
   const [formData, setFormData] = useState({
     userEmail: '',
@@ -150,6 +166,19 @@ const StyleOrderCreatePage = () => {
 
   const mutation = useMutation({
     mutationFn: () => {
+      const validationMessage = buildMissingDeliveryFieldsMessage({
+        fullName: formData.fullName,
+        phone: formData.phone,
+        addressLine1: formData.addressLine1,
+        ward: formData.ward,
+        district: formData.district,
+        city: formData.city,
+        province: formData.province
+      });
+      if (validationMessage) {
+        throw new Error(validationMessage);
+      }
+
       const orderItems = items
         .filter((item) => item.variantId && item.quantity)
         .map((item) => ({
@@ -164,14 +193,52 @@ const StyleOrderCreatePage = () => {
         throw new Error('Vui lòng chọn ít nhất 1 sản phẩm.');
       }
 
+      for (const item of items) {
+        if (!item.variantId || !item.quantity) {
+          continue;
+        }
+        const selectedVariant = item.product?.variants.find(
+          (variant: StoreProductVariant) => String(variant.id) === item.variantId
+        );
+        if (!selectedVariant) {
+          throw new Error('Có sản phẩm chưa tải đủ biến thể, vui lòng kiểm tra lại.');
+        }
+        const quantity = Number(item.quantity);
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+          throw new Error('Số lượng từng dòng phải lớn hơn 0.');
+        }
+        if (quantity > selectedVariant.stockQty) {
+          throw new Error(
+            selectedVariant.stockQty > 0
+              ? `Biến thể ${selectedVariant.size} / ${selectedVariant.color} chỉ còn ${selectedVariant.stockQty} sản phẩm.`
+              : `Biến thể ${selectedVariant.size} / ${selectedVariant.color} đã hết hàng.`
+          );
+        }
+      }
+
       return storeApi.createManualOrder({
         ...formData,
         userEmail: formData.userEmail.trim(),
+        fullName: formData.fullName.trim(),
+        phone: formData.phone.trim(),
+        addressLine1: formData.addressLine1.trim(),
+        addressLine2: formData.addressLine2.trim() || undefined,
+        ward: formData.ward.trim(),
+        district: formData.district.trim(),
+        city: formData.city.trim(),
+        province: formData.province.trim(),
+        postalCode: formData.postalCode.trim() || undefined,
+        note: formData.note.trim() || undefined,
+        notes: formData.notes.trim() || undefined,
         items: orderItems
       });
     },
     onSuccess: () => {
-      setStatusMessage('Đã tạo đơn hàng và gửi tới người dùng.');
+      setStatusMessage(
+        formData.paymentMethod === 'BANK_TRANSFER'
+          ? 'Đã tạo đơn hàng chuyển khoản. Đơn cần được xác nhận thanh toán và cập nhật giao hàng theo quy trình vận hành.'
+          : 'Đã tạo đơn COD. Đơn cần được xử lý và cập nhật giao hàng theo quy trình vận hành.'
+      );
       setFormData((prev) => ({
         ...prev,
         userEmail: '',
@@ -206,17 +273,19 @@ const StyleOrderCreatePage = () => {
   };
 
   const handleLoadProduct = async (index: number, slugOverride?: string) => {
-    const slug = (slugOverride ?? items[index].productSlug).trim();
-    if (!slug) return;
+      const slug = (slugOverride ?? items[index].productSlug).trim();
+      if (!slug) return;
     setItems((prev) =>
       prev.map((item, idx) => (idx === index ? { ...item, status: 'loading', error: null } : item))
     );
     try {
       const product = await storeApi.product(slug);
+      const firstAvailableVariant =
+        product.variants?.find((variant: StoreProductVariant) => variant.stockQty > 0) ?? product.variants?.[0];
       setItems((prev) =>
         prev.map((item, idx) =>
           idx === index
-            ? { ...item, product, variantId: product.variants?.[0]?.id?.toString() ?? '', status: 'idle' }
+            ? { ...item, product, variantId: firstAvailableVariant?.id?.toString() ?? '', status: 'idle' }
             : item
         )
       );
@@ -248,7 +317,7 @@ const StyleOrderCreatePage = () => {
   if (!canCreate) {
     return (
       <div className="sticker-card p-6 text-sm text-cocoa/70">
-        Chỉ tài khoản staff kho hoặc admin mới được tạo đơn hàng.
+        Chỉ tài khoản admin mới được tạo đơn hàng thủ công.
       </div>
     );
   }
@@ -258,7 +327,7 @@ const StyleOrderCreatePage = () => {
       <section className="sticker-card space-y-2 p-6 sm:p-8">
         <h1 className="font-display text-3xl text-mocha">Tạo đơn hàng cho user</h1>
         <p className="text-sm text-cocoa/70">
-          Staff kho hoặc admin tạo đơn hàng thủ công và gửi tới người mua.
+          Admin tạo đơn hàng thủ công, chốt đúng biến thể và tồn kho rồi gửi tới người mua.
         </p>
       </section>
 
@@ -329,24 +398,26 @@ const StyleOrderCreatePage = () => {
           </label>
           <label className="text-sm text-cocoa/70">
             Phường/Xã
-            <input
-              name="ward"
-              autoComplete="address-level4"
-              value={formData.ward}
-              onChange={handleChange}
-              className="mt-2 w-full rounded-2xl border-2 border-caramel/30 bg-white/80 px-4 py-2 text-sm text-cocoa outline-none focus:border-mocha"
-            />
-          </label>
+              <input
+                name="ward"
+                autoComplete="address-level4"
+                value={formData.ward}
+                onChange={handleChange}
+                required
+                className="mt-2 w-full rounded-2xl border-2 border-caramel/30 bg-white/80 px-4 py-2 text-sm text-cocoa outline-none focus:border-mocha"
+              />
+            </label>
           <label className="text-sm text-cocoa/70">
             Quận/Huyện
-            <input
-              name="district"
-              autoComplete="address-level3"
-              value={formData.district}
-              onChange={handleChange}
-              className="mt-2 w-full rounded-2xl border-2 border-caramel/30 bg-white/80 px-4 py-2 text-sm text-cocoa outline-none focus:border-mocha"
-            />
-          </label>
+              <input
+                name="district"
+                autoComplete="address-level3"
+                value={formData.district}
+                onChange={handleChange}
+                required
+                className="mt-2 w-full rounded-2xl border-2 border-caramel/30 bg-white/80 px-4 py-2 text-sm text-cocoa outline-none focus:border-mocha"
+              />
+            </label>
           <label className="text-sm text-cocoa/70">
             Thành phố
             <input
@@ -360,14 +431,15 @@ const StyleOrderCreatePage = () => {
           </label>
           <label className="text-sm text-cocoa/70">
             Tỉnh
-            <input
-              name="province"
-              autoComplete="address-level1"
-              value={formData.province}
-              onChange={handleChange}
-              className="mt-2 w-full rounded-2xl border-2 border-caramel/30 bg-white/80 px-4 py-2 text-sm text-cocoa outline-none focus:border-mocha"
-            />
-          </label>
+              <input
+                name="province"
+                autoComplete="address-level1"
+                value={formData.province}
+                onChange={handleChange}
+                required
+                className="mt-2 w-full rounded-2xl border-2 border-caramel/30 bg-white/80 px-4 py-2 text-sm text-cocoa outline-none focus:border-mocha"
+              />
+            </label>
           <label className="text-sm text-cocoa/70 sm:col-span-2">
             Ghi chú giao hàng
             <textarea

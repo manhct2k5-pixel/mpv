@@ -1,6 +1,8 @@
 package com.wealthwallet.controller;
 
 import com.wealthwallet.domain.entity.UserAccount;
+import com.wealthwallet.dto.BusinessRequestCreateRequest;
+import com.wealthwallet.dto.ChangePasswordRequest;
 import com.wealthwallet.dto.LoginRequest;
 import com.wealthwallet.dto.RegisterRequest;
 import com.wealthwallet.dto.SellerRegisterRequest;
@@ -67,6 +69,12 @@ public class AuthController {
         return ResponseEntity.ok(userService.updateSettings(request));
     }
 
+    @PutMapping("/user/password")
+    public ResponseEntity<Map<String, String>> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        userService.changePassword(request);
+        return ResponseEntity.ok(Map.of("message", "Đã cập nhật mật khẩu"));
+    }
+
     @GetMapping("/user/default-address")
     public ResponseEntity<UserDefaultAddressResponse> defaultAddress() {
         return ResponseEntity.ok(userAddressService.getDefaultAddress());
@@ -80,8 +88,8 @@ public class AuthController {
     }
 
     @PostMapping("/user/business-request")
-    public ResponseEntity<UserAccount> requestBusinessAccess() {
-        return ResponseEntity.ok(userService.requestBusinessAccess());
+    public ResponseEntity<UserAccount> requestBusinessAccess(@Valid @RequestBody BusinessRequestCreateRequest request) {
+        return ResponseEntity.ok(userService.requestBusinessAccess(request));
     }
 
     @PostMapping("/logout")

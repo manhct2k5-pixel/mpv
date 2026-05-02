@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useEffect, useState, type FormEvent } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { storeApi, financeApi } from '../services/api.ts';
 
 const SellerProfilePage = () => {
+  const queryClient = useQueryClient();
   const { data: profile } = useQuery({
     queryKey: ['profile'],
     queryFn: financeApi.me
@@ -37,36 +38,39 @@ const SellerProfilePage = () => {
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
 
-  const localSettingsKey = profile?.id != null ? `seller-account-settings-${profile.id}` : 'seller-account-settings-guest';
-
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(localSettingsKey);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as {
-        bankForm?: typeof bankForm;
-        notifyForm?: typeof notifyForm;
-      };
-      if (parsed.bankForm) {
-        setBankForm(parsed.bankForm);
-      }
-      if (parsed.notifyForm) {
-        setNotifyForm(parsed.notifyForm);
-      }
-    } catch {
-      // ignore local parse errors
-    }
-  }, [localSettingsKey]);
-
-  useEffect(() => {
-    localStorage.setItem(
-      localSettingsKey,
-      JSON.stringify({
-        bankForm,
-        notifyForm
-      })
-    );
-  }, [bankForm, localSettingsKey, notifyForm]);
+    if (!profile) return;
+    setFormData({
+      storeName: profile.storeName ?? '',
+      storeDescription: profile.storeDescription ?? '',
+      storePhone: profile.storePhone ?? '',
+      storeAddress: profile.storeAddress ?? '',
+      storeLogoUrl: profile.storeLogoUrl ?? ''
+    });
+    setBankForm({
+      bankName: profile.sellerBankName ?? '',
+      accountName: profile.sellerBankAccountName ?? '',
+      accountNumber: profile.sellerBankAccountNumber ?? ''
+    });
+    setNotifyForm({
+      orderNotifications: profile.sellerOrderNotificationsEnabled ?? true,
+      marketingNotifications: profile.sellerMarketingNotificationsEnabled ?? false,
+      operationAlerts: profile.sellerOperationAlertsEnabled ?? true
+    });
+  }, [
+    profile?.id,
+    profile?.sellerBankAccountName,
+    profile?.sellerBankAccountNumber,
+    profile?.sellerBankName,
+    profile?.sellerMarketingNotificationsEnabled,
+    profile?.sellerOperationAlertsEnabled,
+    profile?.sellerOrderNotificationsEnabled,
+    profile?.storeAddress,
+    profile?.storeDescription,
+    profile?.storeLogoUrl,
+    profile?.storeName,
+    profile?.storePhone
+  ]);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -77,7 +81,26 @@ const SellerProfilePage = () => {
         storeAddress: formData.storeAddress.trim() || undefined,
         storeLogoUrl: formData.storeLogoUrl.trim() || undefined
       }),
-    onSuccess: () => {
+    onSuccess: (updatedProfile) => {
+      queryClient.setQueryData(['profile'], (current: typeof profile | undefined) =>
+        current
+          ? {
+              ...current,
+              storeName: updatedProfile.storeName ?? null,
+              storeDescription: updatedProfile.storeDescription ?? null,
+              storePhone: updatedProfile.storePhone ?? null,
+              storeAddress: updatedProfile.storeAddress ?? null,
+              storeLogoUrl: updatedProfile.storeLogoUrl ?? null
+            }
+          : current
+      );
+      setFormData({
+        storeName: updatedProfile.storeName ?? '',
+        storeDescription: updatedProfile.storeDescription ?? '',
+        storePhone: updatedProfile.storePhone ?? '',
+        storeAddress: updatedProfile.storeAddress ?? '',
+        storeLogoUrl: updatedProfile.storeLogoUrl ?? ''
+      });
       setStatusMessage('Đã cập nhật hồ sơ bán hàng.');
     },
     onError: (error: any) => {
@@ -85,12 +108,63 @@ const SellerProfilePage = () => {
     }
   });
 
-  const handleSaveLocalSettings = (event: React.FormEvent) => {
+  const settingsMutation = useMutation({
+    mutationFn: () =>
+      storeApi.updateSellerProfile(Number(profile?.id), {
+        sellerBankName: bankForm.bankName.trim() || null,
+        sellerBankAccountName: bankForm.accountName.trim() || null,
+        sellerBankAccountNumber: bankForm.accountNumber.trim() || null,
+        sellerOrderNotificationsEnabled: notifyForm.orderNotifications,
+        sellerMarketingNotificationsEnabled: notifyForm.marketingNotifications,
+        sellerOperationAlertsEnabled: notifyForm.operationAlerts
+      }),
+    onSuccess: (updatedProfile) => {
+      queryClient.setQueryData(['profile'], (current: typeof profile | undefined) =>
+        current
+          ? {
+              ...current,
+              sellerBankName: updatedProfile.sellerBankName ?? null,
+              sellerBankAccountName: updatedProfile.sellerBankAccountName ?? null,
+              sellerBankAccountNumber: updatedProfile.sellerBankAccountNumber ?? null,
+              sellerOrderNotificationsEnabled: updatedProfile.sellerOrderNotificationsEnabled ?? true,
+              sellerMarketingNotificationsEnabled: updatedProfile.sellerMarketingNotificationsEnabled ?? false,
+              sellerOperationAlertsEnabled: updatedProfile.sellerOperationAlertsEnabled ?? true
+            }
+          : current
+      );
+      setSettingsMessage('Đã lưu cài đặt thanh toán & thông báo vào database.');
+    },
+    onError: (error: any) => {
+      setSettingsMessage(error?.response?.data?.message || 'Không thể lưu cài đặt seller.');
+    }
+  });
+
+  const passwordMutation = useMutation({
+    mutationFn: () =>
+      financeApi.changePassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword
+      }),
+    onSuccess: () => {
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+      setPasswordMessage('Đã cập nhật mật khẩu.');
+    },
+    onError: (error: any) => {
+      setPasswordMessage(error?.response?.data?.message || 'Không thể cập nhật mật khẩu.');
+    }
+  });
+
+  const handleSaveSettings = (event: FormEvent) => {
     event.preventDefault();
-    setSettingsMessage('Đã lưu thông tin nhận tiền và cài đặt thông báo cho cửa hàng.');
+    setSettingsMessage(null);
+    settingsMutation.mutate();
   };
 
-  const handleChangePassword = (event: React.FormEvent) => {
+  const handleChangePassword = (event: FormEvent) => {
     event.preventDefault();
     if (!passwordForm.newPassword || passwordForm.newPassword.length < 8) {
       setPasswordMessage('Mật khẩu mới cần tối thiểu 8 ký tự.');
@@ -100,12 +174,8 @@ const SellerProfilePage = () => {
       setPasswordMessage('Mật khẩu xác nhận chưa khớp.');
       return;
     }
-    setPasswordForm({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: ''
-    });
-    setPasswordMessage('Đã cập nhật mật khẩu thành công.');
+    setPasswordMessage(null);
+    passwordMutation.mutate();
   };
 
   if (!canManage) {
@@ -121,6 +191,9 @@ const SellerProfilePage = () => {
       <section className="sticker-card space-y-2 p-6 sm:p-8">
         <h1 className="font-display text-3xl text-mocha">Hồ sơ gian hàng</h1>
         <p className="text-sm text-cocoa/70">Cập nhật thông tin giới thiệu cho gian hàng của bạn.</p>
+        <p className="rounded-2xl border border-caramel/30 bg-white/80 px-4 py-3 text-xs text-cocoa/65">
+          Khung hồ sơ này đồng bộ trực tiếp với dữ liệu seller trong backend.
+        </p>
       </section>
 
       <form
@@ -184,8 +257,11 @@ const SellerProfilePage = () => {
         )}
       </form>
 
-      <form onSubmit={handleSaveLocalSettings} className="sticker-card space-y-4 p-6">
+      <form onSubmit={handleSaveSettings} className="sticker-card space-y-4 p-6">
         <h2 className="text-lg font-semibold text-cocoa">Tài khoản ngân hàng nhận tiền</h2>
+        <p className="rounded-2xl border border-emerald-200/70 bg-emerald-50/80 px-4 py-3 text-xs text-emerald-800">
+          Dữ liệu ngân hàng và cài đặt thông báo được đồng bộ qua API seller profile, không còn lưu localStorage.
+        </p>
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="text-sm text-cocoa/70">
             Ngân hàng
@@ -247,8 +323,8 @@ const SellerProfilePage = () => {
           </label>
         </div>
 
-        <button type="submit" className="btn-secondary">
-          Lưu cài đặt thanh toán & thông báo
+        <button type="submit" className="btn-secondary" disabled={settingsMutation.isPending}>
+          {settingsMutation.isPending ? 'Đang lưu...' : 'Lưu cài đặt thanh toán & thông báo'}
         </button>
         {settingsMessage ? (
           <div className="rounded-2xl border border-caramel/40 bg-white/80 px-4 py-3 text-sm text-cocoa/70">
@@ -259,6 +335,9 @@ const SellerProfilePage = () => {
 
       <form onSubmit={handleChangePassword} className="sticker-card space-y-4 p-6">
         <h2 className="text-lg font-semibold text-cocoa">Đổi mật khẩu</h2>
+        <p className="rounded-2xl border border-emerald-200/70 bg-emerald-50/80 px-4 py-3 text-xs text-emerald-800">
+          Luồng đổi mật khẩu gọi API backend và kiểm tra mật khẩu hiện tại trước khi cập nhật.
+        </p>
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="text-sm text-cocoa/70">
             Mật khẩu hiện tại
@@ -291,8 +370,8 @@ const SellerProfilePage = () => {
             />
           </label>
         </div>
-        <button type="submit" className="btn-secondary">
-          Cập nhật mật khẩu
+        <button type="submit" className="btn-secondary" disabled={passwordMutation.isPending}>
+          {passwordMutation.isPending ? 'Đang cập nhật...' : 'Cập nhật mật khẩu'}
         </button>
         {passwordMessage ? (
           <div className="rounded-2xl border border-caramel/40 bg-white/80 px-4 py-3 text-sm text-cocoa/70">

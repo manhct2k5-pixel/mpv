@@ -9,6 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -60,6 +61,7 @@ public class ReturnRequest {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String reason;
 
+    @Lob
     private String evidenceUrl;
 
     @Column(columnDefinition = "TEXT")

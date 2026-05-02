@@ -4,6 +4,17 @@ export interface UserProfile {
   email: string;
   avatar?: string;
   avatarUrl?: string;
+  storeName?: string | null;
+  storeDescription?: string | null;
+  storePhone?: string | null;
+  storeAddress?: string | null;
+  storeLogoUrl?: string | null;
+  sellerBankName?: string | null;
+  sellerBankAccountName?: string | null;
+  sellerBankAccountNumber?: string | null;
+  sellerOrderNotificationsEnabled?: boolean;
+  sellerMarketingNotificationsEnabled?: boolean;
+  sellerOperationAlertsEnabled?: boolean;
   role:
     | 'user'
     | 'admin'
@@ -59,6 +70,20 @@ export interface BusinessRequest {
   email: string;
   role: string;
   requestedAt?: string;
+  storeName?: string | null;
+  storePhone?: string | null;
+  storeAddress?: string | null;
+  storeDescription?: string | null;
+  storeLogoUrl?: string | null;
+  avatarUrl?: string | null;
+  createdAt?: string;
+}
+
+export interface SellerBusinessRequestPayload {
+  storeName: string;
+  storePhone: string;
+  storeAddress: string;
+  storeDescription: string;
 }
 
 export interface AdminUserInsight {

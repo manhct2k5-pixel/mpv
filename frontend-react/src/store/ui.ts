@@ -13,7 +13,7 @@ interface UIState {
   toggleNotificationDrawer: () => void;
 }
 
-export const useUIStore = create<UIState>((set, get) => ({
+export const useUIStore = create<UIState>((set) => ({
   isSidebarCollapsed: false,
   notifications: [],
   unreadCount: 0,

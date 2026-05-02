@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { financeApi } from '../services/api.ts';
 import { useAuthStore } from '../store/auth.ts';
+import { canUseShoppingFlow } from '../utils/access';
 
 type AddressFormState = {
   fullName: string;
@@ -37,18 +38,18 @@ const AddressBookPage = () => {
   const [formData, setFormData] = useState<AddressFormState>(emptyForm);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  const { data: profile, isLoading: profileLoading } = useQuery({
+  const { data: profile, isLoading: profileLoading, isError: profileError, refetch: refetchProfile } = useQuery({
     queryKey: ['profile'],
     queryFn: financeApi.me,
     enabled: isAuthenticated,
     retry: 1
   });
-  const isCustomer = (profile?.role ?? '').toLowerCase() === 'user';
+  const canShop = canUseShoppingFlow(profile?.role);
 
-  const { data: addresses = [], isLoading } = useQuery({
+  const { data: addresses = [], isLoading, isError: addressesError, refetch: refetchAddresses } = useQuery({
     queryKey: ['user-addresses'],
     queryFn: financeApi.addresses,
-    enabled: isAuthenticated && isCustomer
+    enabled: isAuthenticated && canShop
   });
 
   const createMutation = useMutation({
@@ -164,10 +165,26 @@ const AddressBookPage = () => {
     );
   }
 
-  if (!isCustomer) {
+  if (profileError || !profile) {
+    return (
+      <div className="space-y-4 rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
+        <p>Không tải được thông tin tài khoản để mở sổ địa chỉ.</p>
+        <div className="flex flex-wrap gap-3">
+          <button type="button" className="btn-primary" onClick={() => void refetchProfile()}>
+            Tải lại
+          </button>
+          <Link to="/login" className="btn-secondary !border-rose-200/80 !bg-white/90">
+            Đăng nhập lại
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!canShop) {
     return (
       <div className="rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
-        Trang sổ địa chỉ chỉ dành cho tài khoản khách hàng.
+        Trang sổ địa chỉ dành cho tài khoản khách hàng.
       </div>
     );
   }
@@ -190,7 +207,19 @@ const AddressBookPage = () => {
         <section className="space-y-3 rounded-3xl border border-rose-200/70 bg-white/90 p-5 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
           <h2 className="text-lg font-semibold text-cocoa">Địa chỉ đã lưu</h2>
           {isLoading ? <p className="text-sm text-cocoa/70">Đang tải địa chỉ...</p> : null}
-          {!isLoading && orderedAddresses.length === 0 ? (
+          {addressesError ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-800">
+              <p>Không tải được danh sách địa chỉ đã lưu.</p>
+              <button
+                type="button"
+                className="mt-3 btn-secondary btn-secondary--sm !border-amber-200 !bg-white/90"
+                onClick={() => void refetchAddresses()}
+              >
+                Tải lại địa chỉ
+              </button>
+            </div>
+          ) : null}
+          {!isLoading && !addressesError && orderedAddresses.length === 0 ? (
             <p className="text-sm text-cocoa/70">Bạn chưa có địa chỉ nào.</p>
           ) : null}
           <div className="space-y-3">

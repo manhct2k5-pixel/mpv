@@ -17,31 +17,32 @@ import ProductCard from '../components/store/ProductCard';
 import { lookbookStories, storeBenefits, storeCategories } from '../data/store';
 import { financeApi, storeApi } from '../services/api.ts';
 import { useAuthStore } from '../store/auth.ts';
+import { isCustomerRole } from '../utils/access';
 
 const heroCards = [
   {
-    title: 'Set đôi nâu kem',
-    description: 'Mix đôi cho ngày hẹn',
-    accent: 'bg-blush/40',
-    icon: Heart
+    title: 'Đầm linen vanilla',
+    description: 'Cafe sáng với linen sáng màu',
+    accent: 'bg-cream',
+    icon: Sparkles
   },
   {
-    title: 'Layer ấm áp',
-    description: 'Cardigan + váy xoè',
+    title: 'Polo sage weekend',
+    description: 'Nam tính nhẹ, gọn gàng cuối tuần',
     accent: 'bg-latte/70',
     icon: Shirt
   },
   {
-    title: 'Phụ kiện nhỏ xinh',
-    description: 'Túi mini, khăn cổ',
+    title: 'Tote canvas be',
+    description: 'Phụ kiện hợp cả đi học lẫn đi chơi',
     accent: 'bg-caramel/25',
     icon: ShoppingBag
   },
   {
-    title: 'Tone nâu kem',
-    description: 'Vibe ngọt ngào',
-    accent: 'bg-cream',
-    icon: Sparkles
+    title: 'Set picnic sage latte',
+    description: 'Combo lên hình rất sáng và dịu mắt',
+    accent: 'bg-blush/40',
+    icon: Heart
   }
 ];
 
@@ -87,7 +88,14 @@ type QuickFilters = {
   color: string;
 };
 
-const searchSuggestions = ['Váy xoè', 'Cardigan', 'Set đôi', 'Túi mini', 'Latte', 'Kem sữa'];
+const searchSuggestions = [
+  'Đầm linen vanilla',
+  'Polo sage weekend',
+  'Tote canvas be',
+  'Set picnic sage latte',
+  'Hồng dusty',
+  'Xanh sage'
+];
 
 const emptyProductsPage = {
   items: [],
@@ -100,13 +108,14 @@ const StorefrontPage = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: profile } = useQuery({
+  const [wishlistMessage, setWishlistMessage] = useState<string | null>(null);
+  const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ['profile'],
     queryFn: financeApi.me,
     enabled: isAuthenticated,
     retry: 1
   });
-  const isCustomer = (profile?.role ?? '').toLowerCase() === 'user';
+  const isCustomer = isCustomerRole(profile?.role);
   const { data: categories = [] } = useQuery({
     queryKey: ['store-categories'],
     queryFn: storeApi.categories
@@ -114,6 +123,10 @@ const StorefrontPage = () => {
   const { data: featuredProducts = [] } = useQuery({
     queryKey: ['store-featured'],
     queryFn: storeApi.featuredProducts
+  });
+  const { data: lookbooks = [] } = useQuery({
+    queryKey: ['store-lookbooks-home'],
+    queryFn: storeApi.lookbooks
   });
   const { data: wishlist = [] } = useQuery({
     queryKey: ['store-wishlist'],
@@ -126,6 +139,7 @@ const StorefrontPage = () => {
       payload.remove ? storeApi.removeWishlist(payload.productId) : storeApi.addWishlist(payload.productId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['store-wishlist'] });
+      setWishlistMessage(null);
     }
   });
 
@@ -136,8 +150,12 @@ const StorefrontPage = () => {
       navigate('/login');
       return;
     }
+    if (profileLoading) {
+      setWishlistMessage('Đang tải quyền tài khoản, vui lòng thử lại sau vài giây.');
+      return;
+    }
     if (!isCustomer) {
-      navigate('/tai-khoan');
+      setWishlistMessage('Wishlist chỉ dành cho tài khoản khách hàng.');
       return;
     }
     toggleWishlist.mutate({ productId, remove: wishlistIds.has(productId) });
@@ -191,20 +209,25 @@ const StorefrontPage = () => {
     enabled: hasSearch
   });
 
-  const applyFilters = (nextFilters: QuickFilters) => {
-    const params: Record<string, string> = {};
-    if (nextFilters.q.trim()) params.q = nextFilters.q.trim();
-    if (nextFilters.categoryId) params.categoryId = nextFilters.categoryId;
-    if (nextFilters.minPrice.trim()) params.minPrice = nextFilters.minPrice.trim();
-    if (nextFilters.maxPrice.trim()) params.maxPrice = nextFilters.maxPrice.trim();
-    if (nextFilters.size.trim()) params.size = nextFilters.size.trim();
-    if (nextFilters.color.trim()) params.color = nextFilters.color.trim();
-    setSearchParams(params);
+  const buildFilterParams = (nextFilters: QuickFilters) => {
+    const params = new URLSearchParams();
+    if (nextFilters.q.trim()) params.set('q', nextFilters.q.trim());
+    if (nextFilters.categoryId) params.set('categoryId', nextFilters.categoryId);
+    if (nextFilters.minPrice.trim()) params.set('minPrice', nextFilters.minPrice.trim());
+    if (nextFilters.maxPrice.trim()) params.set('maxPrice', nextFilters.maxPrice.trim());
+    if (nextFilters.size.trim()) params.set('size', nextFilters.size.trim());
+    if (nextFilters.color.trim()) params.set('color', nextFilters.color.trim());
+    return params;
+  };
+
+  const navigateToCatalog = (nextFilters: QuickFilters) => {
+    const params = buildFilterParams(nextFilters).toString();
+    navigate(params ? `/san-pham?${params}` : '/san-pham');
   };
 
   const handleQuickSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    applyFilters(filters);
+    navigateToCatalog(filters);
   };
 
   const handleClearFilters = () => {
@@ -221,11 +244,27 @@ const StorefrontPage = () => {
   const handleSuggestion = (value: string) => {
     const nextFilters = { ...filters, q: value };
     setFilters(nextFilters);
-    applyFilters(nextFilters);
+    navigateToCatalog(nextFilters);
   };
 
   const handlePromoClick = () => {
     navigate(isAuthenticated ? '/sale' : '/register');
+  };
+
+  const handleShoppingFlowClick = () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    if (profileLoading) {
+      setWishlistMessage('Đang tải quyền tài khoản, vui lòng thử lại sau vài giây.');
+      return;
+    }
+    if (!isCustomer) {
+      setWishlistMessage('Giỏ hàng và thanh toán chỉ dành cho tài khoản khách hàng.');
+      return;
+    }
+    navigate('/gio-hang');
   };
 
   const categoryCards = categories.length
@@ -246,6 +285,33 @@ const StorefrontPage = () => {
       })
     : storeCategories;
 
+  const homeLookbooks = useMemo(() => {
+    const apiItems = lookbooks
+      .filter((item) => item.active !== false)
+      .slice(0, 4)
+      .map((item) => ({
+        id: item.id,
+        title: item.title,
+        description: item.description ?? 'Khám phá outfit mới từ studio drop tuần này.',
+        mood: item.mood ?? 'Lookbook',
+        tags: item.tags?.slice(0, 3) ?? [],
+        coverImageUrl: item.coverImageUrl ?? null
+      }));
+
+    if (apiItems.length > 0) {
+      return apiItems;
+    }
+
+    return lookbookStories.slice(0, 4).map((story, index) => ({
+      id: `fallback-${index}`,
+      title: story.title,
+      description: story.description,
+      mood: story.mood,
+      tags: [],
+      coverImageUrl: null
+    }));
+  }, [lookbooks]);
+
   return (
     <div className="space-y-12 pb-8">
       <section className="relative overflow-hidden rounded-[46px] border border-rose-200/70 bg-[linear-gradient(130deg,rgba(255,255,255,0.96),rgba(255,243,236,0.9))] p-6 shadow-[0_26px_60px_rgba(148,163,184,0.18)] sm:p-10 lg:p-12">
@@ -260,10 +326,11 @@ const StorefrontPage = () => {
             </span>
             <div className="max-w-xl space-y-3">
               <h1 className="font-display text-4xl leading-tight sm:text-5xl lg:text-6xl">
-                Giao diện mua sắm <span className="text-mocha">dịu mắt</span>, chọn đồ nhanh hơn
+                Studio drop mới với <span className="text-mocha">linen vanilla</span>, sage weekend và phụ kiện canvas
               </h1>
               <p className="text-base text-cocoa/70 sm:text-lg">
-                Tối ưu cho trải nghiệm khách hàng: tìm nhanh, xem rõ biến thể và ra đơn mượt trên cả mobile lẫn desktop.
+                Hero trang chủ giờ bám đúng các sản phẩm demo mới nhất: đầm linen sáng màu, polo xanh sage, tote canvas
+                và set picnic dịu mắt cho những buổi đi chơi cuối tuần.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -283,11 +350,19 @@ const StorefrontPage = () => {
                 <Camera className="h-4 w-4" />
                 Lookbook
               </Link>
+              <Link
+                to="/ho-tro?partner=styles"
+                className="inline-flex items-center gap-2 rounded-xl border border-rose-200/80 bg-white/95 px-5 py-2.5 text-sm font-semibold text-mocha shadow-[0_14px_26px_rgba(251,113,133,0.18)] transition hover:border-rose-300 hover:bg-rose-50"
+              >
+                <Sparkles className="h-4 w-4 text-rose-500" />
+                Hỏi AI Stylist
+              </Link>
             </div>
             <div className="flex flex-wrap gap-2 text-xs text-cocoa/70">
-              <span className="tag !border-rose-200/80 !bg-white/90">30+ mẫu mới mỗi tuần</span>
-              <span className="tag !border-rose-200/80 !bg-white/90">Đổi trả 7 ngày</span>
-              <span className="tag !border-rose-200/80 !bg-white/90">Gói quà xinh miễn phí</span>
+              <span className="tag !border-rose-200/80 !bg-white/90">Đầm linen vanilla</span>
+              <span className="tag !border-rose-200/80 !bg-white/90">Polo sage weekend</span>
+              <span className="tag !border-rose-200/80 !bg-white/90">Tote canvas be</span>
+              <span className="tag !border-rose-200/80 !bg-white/90">Set picnic sage latte</span>
             </div>
           </div>
 
@@ -314,7 +389,7 @@ const StorefrontPage = () => {
                 <input
                   value={filters.q}
                   onChange={(event) => handleFilterChange('q', event.target.value)}
-                  placeholder="Ví dụ: váy, cardigan..."
+                  placeholder="Ví dụ: linen vanilla, polo sage..."
                   className="mt-2 w-full rounded-xl border border-rose-200/70 bg-rose-50/50 px-4 py-2 text-sm text-cocoa outline-none transition focus:border-rose-400 focus:bg-white"
                 />
               </label>
@@ -416,6 +491,12 @@ const StorefrontPage = () => {
         </div>
       </section>
 
+      {wishlistMessage ? (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-800 shadow-[0_12px_24px_rgba(148,163,184,0.08)]">
+          {wishlistMessage}
+        </div>
+      ) : null}
+
       {hasSearch && (
         <section className="space-y-6">
           <div className="flex flex-wrap items-end justify-between gap-4">
@@ -438,9 +519,14 @@ const StorefrontPage = () => {
                 {appliedFilters.color && <span className="tag">Màu {appliedFilters.color}</span>}
               </div>
             </div>
-            <button type="button" className="btn-secondary" onClick={handleClearFilters}>
-              Xem lại danh mục
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <Link to={searchKey ? `/san-pham?${searchKey}` : '/san-pham'} className="btn-primary">
+                Xem tất cả kết quả
+              </Link>
+              <button type="button" className="btn-secondary" onClick={handleClearFilters}>
+                Xem lại danh mục
+              </button>
+            </div>
           </div>
           {quickLoading ? (
             <div className="rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
@@ -534,9 +620,11 @@ const StorefrontPage = () => {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="font-display text-3xl text-mocha">Mới về trong tuần</h2>
-            <p className="text-sm text-cocoa/70">Những item vừa lên kệ, sẵn sàng mix đồ.</p>
+            <p className="text-sm text-cocoa/70">
+              Đầm linen, polo sage, tote canvas và các combo mới đang là nhóm nổi bật nhất trên storefront.
+            </p>
           </div>
-          <Link to="/sale" className="btn-secondary">
+          <Link to="/san-pham" className="btn-secondary">
             Xem toàn bộ
           </Link>
         </div>
@@ -563,33 +651,61 @@ const StorefrontPage = () => {
           <div>
             <h2 className="font-display text-3xl text-mocha">Lookbook tuần này</h2>
             <p className="text-sm text-cocoa/70">
-              Gợi ý phối đồ nâu kem theo mood nhẹ nhàng, tinh nghịch.
+              Những set mới bám đúng catalog vừa thêm: vanilla linen, sage weekend, tote canvas và picnic latte.
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            {lookbookStories.map((story) => (
-              <div key={story.title} className="rounded-2xl border border-rose-200/70 bg-rose-50/45 p-4">
-                <p className="text-xs font-semibold uppercase text-mocha/70">{story.mood}</p>
-                <p className="mt-1 text-sm font-semibold text-cocoa">{story.title}</p>
-                <p className="mt-2 text-xs text-cocoa/70">{story.description}</p>
-              </div>
-            ))}
+            {homeLookbooks.map((story) => {
+              const detailPath = typeof story.id === 'number' ? `/lookbook/${story.id}` : '/lookbook';
+              return (
+                <Link
+                  key={String(story.id)}
+                  to={detailPath}
+                  className="overflow-hidden rounded-2xl border border-rose-200/70 bg-rose-50/45 transition hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(148,163,184,0.16)]"
+                >
+                  {story.coverImageUrl ? (
+                    <div
+                      className="h-28 bg-cover bg-center"
+                      style={{
+                        backgroundImage: `linear-gradient(180deg,rgba(56,39,30,0.08),rgba(56,39,30,0.38)), url(${story.coverImageUrl})`
+                      }}
+                    />
+                  ) : (
+                    <div className="h-28 bg-[linear-gradient(135deg,rgba(255,244,240,0.95),rgba(255,236,222,0.88))]" />
+                  )}
+                  <div className="space-y-2 p-4">
+                    <p className="text-xs font-semibold uppercase text-mocha/70">{story.mood}</p>
+                    <p className="text-sm font-semibold text-cocoa">{story.title}</p>
+                    <p className="text-xs text-cocoa/70">{story.description}</p>
+                    {story.tags.length > 0 ? (
+                      <div className="flex flex-wrap gap-2 text-[11px] text-cocoa/70">
+                        {story.tags.map((tag) => (
+                          <span key={tag} className="tag !border-rose-200/80 !bg-white/90">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </Link>
+              );
+            })}
           </div>
           <Link to="/lookbook" className="btn-primary w-fit">
             <Camera className="h-4 w-4" />
-            Xem thêm phối đồ
+            Xem toàn bộ lookbook
           </Link>
         </div>
 
         <div className="space-y-4">
           <div className="rounded-3xl border border-rose-200/70 bg-white/90 p-6 shadow-[0_12px_24px_rgba(148,163,184,0.14)] sm:p-8">
             <p className="badge">Vibe đáng yêu</p>
-            <h3 className="mt-3 font-display text-2xl text-mocha">Checklist outfit đi chơi</h3>
+            <h3 className="mt-3 font-display text-2xl text-mocha">Checklist outfit studio drop</h3>
             <p className="mt-2 text-sm text-cocoa/70">
-              Chọn tông nâu kem làm chủ đạo, thêm phụ kiện nhỏ xinh để outfit nổi bật.
+              Ưu tiên linen sáng màu, xanh sage dịu mắt và một phụ kiện canvas hoặc trang sức tối giản để outfit nhìn có chủ ý hơn.
             </p>
             <div className="mt-4 flex flex-wrap gap-2 text-xs">
-              {['Tone nâu kem', 'Dáng suông', 'Chất liệu mềm'].map((item) => (
+              {['Đầm linen vanilla', 'Polo sage weekend', 'Tote canvas be', 'Vòng cổ bạc tối giản'].map((item) => (
                 <span key={item} className="tag">
                   {item}
                 </span>
@@ -602,7 +718,7 @@ const StorefrontPage = () => {
             <p className="text-sm text-cocoa/70">
               Xem sản phẩm, thêm vào giỏ, thanh toán và theo dõi đơn hàng ngay trong tài khoản của bạn.
             </p>
-            <button type="button" className="btn-primary w-fit" onClick={() => navigate('/gio-hang')}>
+            <button type="button" className="btn-primary w-fit" onClick={handleShoppingFlowClick}>
               Đi tới giỏ hàng
             </button>
           </div>

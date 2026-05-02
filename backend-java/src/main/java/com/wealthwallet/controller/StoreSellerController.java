@@ -3,6 +3,8 @@ package com.wealthwallet.controller;
 import com.wealthwallet.dto.SellerProfileResponse;
 import com.wealthwallet.dto.SellerProfileUpdateRequest;
 import com.wealthwallet.dto.SellerRatingRequest;
+import com.wealthwallet.dto.SellerReviewResponse;
+import com.wealthwallet.dto.SellerReviewStateUpdateRequest;
 import com.wealthwallet.dto.OrderSummaryResponse;
 import com.wealthwallet.dto.StoreProductSummaryResponse;
 import com.wealthwallet.dto.StoreSellerResponse;
@@ -54,6 +56,20 @@ public class StoreSellerController {
     @GetMapping("/sellers/{id}/orders")
     public List<OrderSummaryResponse> sellerOrders(@PathVariable(name = "id") Long id) {
         return sellerService.listSellerOrders(userService.getCurrentUser(), id);
+    }
+
+    @GetMapping("/sellers/{id}/reviews")
+    public List<SellerReviewResponse> sellerReviews(@PathVariable(name = "id") Long id) {
+        return sellerService.listSellerReviews(userService.getCurrentUser(), id);
+    }
+
+    @PutMapping("/sellers/{id}/reviews/{reviewId}/state")
+    public SellerReviewResponse updateSellerReviewState(
+            @PathVariable(name = "id") Long id,
+            @PathVariable(name = "reviewId") Long reviewId,
+            @Valid @RequestBody SellerReviewStateUpdateRequest request
+    ) {
+        return sellerService.updateSellerReviewState(userService.getCurrentUser(), id, reviewId, request);
     }
 
     @GetMapping("/sellers/{id}/products")

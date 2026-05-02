@@ -67,14 +67,15 @@ const SellerOrdersPage = () => {
   const isStaff = role === 'warehouse';
   const isSeller = role === 'seller';
   const canManageOrders = isSeller || isAdmin || isStaff;
-  const canCreateManualOrder = isAdmin || isStaff;
+  const canCreateManualOrder = isAdmin;
   const canViewReports = isAdmin || isSeller;
   const sellerId = profile?.id != null ? Number(profile.id) : null;
 
   const { data: orders = [], isLoading: ordersLoading } = useQuery<OrderSummary[]>({
     queryKey: ['seller-orders', role, sellerId],
     queryFn: () => (isAdmin ? financeApi.admin.orders() : storeApi.sellerOrders(sellerId as number)),
-    enabled: isAuthenticated && canManageOrders && (isAdmin || sellerId != null)
+    enabled: isAuthenticated && canManageOrders && (isAdmin || sellerId != null),
+    refetchInterval: 5_000
   });
 
   const confirmPaymentMutation = useMutation({
@@ -271,7 +272,7 @@ const SellerOrdersPage = () => {
               </Link>
             ) : null}
             {canCreateManualOrder ? (
-              <Link to="/seller/tao-don" className="btn-secondary btn-secondary--sm">
+              <Link to="/admin/manual-order" className="btn-secondary btn-secondary--sm">
                 Tạo đơn thủ công
               </Link>
             ) : null}

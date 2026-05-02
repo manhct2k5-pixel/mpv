@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MessageSquareText, Search, Star, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { financeApi, storeApi } from '../services/api.ts';
 import { useAuthStore } from '../store/auth.ts';
+import type { SellerReview } from '../types/store.ts';
 
 type FeedbackEntry = {
-  id: string;
-  partnerId: number;
+  id: number;
   customerName: string;
   productName: string;
   stars: number;
@@ -14,15 +14,10 @@ type FeedbackEntry = {
   createdAt: string;
   partnerName: string;
   partnerRole: string;
-};
-
-type FeedbackState = {
   note: string;
   replied: boolean;
   flagged: boolean;
 };
-
-const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 const roleLabel = (value: string) => {
   const normalized = value.toLowerCase();
@@ -32,21 +27,12 @@ const roleLabel = (value: string) => {
   return normalized;
 };
 
-const productNamePool = ['Áo len kem', 'Đầm midi nâu', 'Set công sở', 'Áo khoác form rộng', 'Phụ kiện da'];
-
-const buildFeedbackContent = (stars: number) => {
-  if (stars >= 5) return 'Shop hỗ trợ rất nhanh, đóng gói đẹp và giao đúng hẹn.';
-  if (stars >= 4) return 'Sản phẩm ổn, chỉ cần cải thiện tốc độ phản hồi thêm chút.';
-  if (stars >= 3) return 'Hàng đúng mô tả nhưng giao hơi chậm, mong shop theo sát hơn.';
-  if (stars >= 2) return 'Có lỗi nhỏ khi nhận hàng, cần hỗ trợ đổi trả nhanh hơn.';
-  return 'Trải nghiệm chưa tốt, cần xử lý khiếu nại sớm.';
-};
-
 const SellerRatingsPage = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const queryClient = useQueryClient();
   const [starFilter, setStarFilter] = useState<'all' | '5' | '4' | '3' | '2' | '1'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [feedbackStateMap, setFeedbackStateMap] = useState<Record<string, FeedbackState>>({});
+  const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
 
   const { data: profile } = useQuery({
     queryKey: ['profile'],
@@ -55,71 +41,66 @@ const SellerRatingsPage = () => {
     retry: 1
   });
 
-  const { data: sellers = [], isLoading } = useQuery({
-    queryKey: ['store-sellers'],
-    queryFn: storeApi.sellers,
-    enabled: isAuthenticated
-  });
-
-  const storageKey = profile?.id != null ? `seller-feedback-state-${profile.id}` : 'seller-feedback-state-guest';
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (!raw) {
-        setFeedbackStateMap({});
-        return;
-      }
-      const parsed = JSON.parse(raw) as Record<string, FeedbackState>;
-      setFeedbackStateMap(parsed ?? {});
-    } catch {
-      setFeedbackStateMap({});
-    }
-  }, [storageKey]);
-
-  useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(feedbackStateMap));
-  }, [feedbackStateMap, storageKey]);
-
   const rawRole = (profile?.role ?? '').toLowerCase();
   const role = rawRole === 'styles' ? 'warehouse' : rawRole;
-  const isSeller = role === 'seller';
+  const canManage = role === 'seller' || role === 'admin';
+  const sellerId = Number(profile?.id);
+  const sellerName = profile?.storeName || profile?.fullName || 'Gian hàng';
 
-  const scopedPartners = useMemo(() => {
-    if (!isSeller || profile?.id == null) {
-      return sellers;
+  const { data: reviews = [], isLoading } = useQuery({
+    queryKey: ['seller-reviews', sellerId],
+    queryFn: () => storeApi.sellerReviews(sellerId),
+    enabled: isAuthenticated && canManage && Number.isFinite(sellerId),
+    retry: 1
+  });
+
+  useEffect(() => {
+    setNoteDrafts((current) => {
+      const next = { ...current };
+      reviews.forEach((review) => {
+        if (next[review.id] == null) {
+          next[review.id] = review.note ?? '';
+        }
+      });
+      return next;
+    });
+  }, [reviews]);
+
+  const updateReviewStateMutation = useMutation({
+    mutationFn: ({ reviewId, patch }: { reviewId: number; patch: { note?: string | null; replied?: boolean; flagged?: boolean } }) =>
+      storeApi.updateSellerReviewState(sellerId, reviewId, patch),
+    onSuccess: (updatedReview) => {
+      queryClient.setQueryData<SellerReview[]>(['seller-reviews', sellerId], (current = []) =>
+        current.map((review) => (review.id === updatedReview.id ? updatedReview : review))
+      );
+      setNoteDrafts((current) => ({
+        ...current,
+        [updatedReview.id]: updatedReview.note ?? ''
+      }));
     }
-    const mine = sellers.find((seller) => Number(seller.id) === Number(profile.id));
-    return mine ? [mine] : sellers.filter((seller) => seller.role.toLowerCase() === 'seller');
-  }, [isSeller, profile?.id, sellers]);
+  });
 
   const feedbackEntries = useMemo<FeedbackEntry[]>(() => {
-    return scopedPartners.flatMap((partner) => {
-      const count = Math.max(1, Math.min(6, Number(partner.ratingCount ?? 1)));
-      return Array.from({ length: count }).map((_, index) => {
-        const drift = ((index % 3) - 1) * 0.4;
-        const stars = clamp(Math.round((partner.averageRating ?? 0) + drift), 1, 5);
-        const createdAt = new Date(Date.now() - (index + 1) * 6 * 60 * 60 * 1000).toISOString();
-        return {
-          id: `${partner.id}-${index}`,
-          partnerId: partner.id,
-          customerName: `Khách hàng #${partner.id}-${index + 1}`,
-          productName: productNamePool[index % productNamePool.length],
-          stars,
-          content: buildFeedbackContent(stars),
-          createdAt,
-          partnerName: partner.fullName,
-          partnerRole: partner.role
-        };
-      });
-    });
-  }, [scopedPartners]);
+    return reviews.map((review) => ({
+      id: review.id,
+      customerName: review.customerName || `Khách hàng #${review.customerId ?? review.id}`,
+      productName: review.productName || review.productSlug || `Sản phẩm #${review.productId ?? review.id}`,
+      stars: review.rating,
+      content: review.comment || 'Khách hàng không để lại nội dung chi tiết.',
+      createdAt: review.createdAt,
+      partnerName: sellerName,
+      partnerRole: role || 'seller',
+      note: review.note ?? '',
+      replied: Boolean(review.replied),
+      flagged: Boolean(review.flagged)
+    }));
+  }, [reviews, role, sellerName]);
 
   const filteredEntries = useMemo(() => {
     const normalizedQuery = searchTerm.trim().toLowerCase();
     return feedbackEntries.filter((entry) => {
       const passStars = starFilter === 'all' || String(entry.stars) === starFilter;
-      const haystack = `${entry.customerName} ${entry.productName} ${entry.content}`.toLowerCase();
+      const haystack = `${entry.customerName} ${entry.productName} ${entry.content} ${entry.note}`.toLowerCase();
       const passQuery = !normalizedQuery || haystack.includes(normalizedQuery);
       return passStars && passQuery;
     });
@@ -132,36 +113,39 @@ const SellerRatingsPage = () => {
   }, [filteredEntries]);
 
   const unresolvedNegativeCount = useMemo(
-    () =>
-      filteredEntries.filter((entry) => {
-        const state = feedbackStateMap[entry.id];
-        return entry.stars <= 3 && !state?.replied;
-      }).length,
-    [feedbackStateMap, filteredEntries]
+    () => filteredEntries.filter((entry) => entry.stars <= 3 && !entry.replied).length,
+    [filteredEntries]
   );
 
   const responseRate = useMemo(() => {
     if (filteredEntries.length === 0) return 0;
-    const replied = filteredEntries.filter((entry) => feedbackStateMap[entry.id]?.replied).length;
+    const replied = filteredEntries.filter((entry) => entry.replied).length;
     return (replied / filteredEntries.length) * 100;
-  }, [feedbackStateMap, filteredEntries]);
+  }, [filteredEntries]);
 
-  const updateEntryState = (id: string, patch: Partial<FeedbackState>) => {
-    setFeedbackStateMap((prev) => ({
-      ...prev,
-      [id]: {
-        note: prev[id]?.note ?? '',
-        replied: prev[id]?.replied ?? false,
-        flagged: prev[id]?.flagged ?? false,
-        ...patch
-      }
-    }));
+  const updateEntryState = (entry: FeedbackEntry, patch: { note?: string | null; replied?: boolean; flagged?: boolean }) => {
+    updateReviewStateMutation.mutate({ reviewId: entry.id, patch });
+  };
+
+  const persistNoteIfChanged = (entry: FeedbackEntry) => {
+    const draft = noteDrafts[entry.id] ?? '';
+    if (draft !== entry.note) {
+      updateEntryState(entry, { note: draft });
+    }
   };
 
   if (!isAuthenticated) {
     return (
       <div className="sticker-card p-6 text-sm text-cocoa/70">
         Vui lòng đăng nhập để theo dõi đánh giá và phản hồi.
+      </div>
+    );
+  }
+
+  if (!canManage) {
+    return (
+      <div className="sticker-card p-6 text-sm text-cocoa/70">
+        Bạn không có quyền xem bảng đánh giá seller.
       </div>
     );
   }
@@ -176,8 +160,11 @@ const SellerRatingsPage = () => {
         <div className="space-y-1">
           <h1 className="font-display text-3xl text-mocha">Đánh giá & phản hồi</h1>
           <p className="text-sm text-cocoa/70">
-            Theo dõi mức độ hài lòng, lọc phản hồi theo số sao và phản hồi các đánh giá tiêu cực kịp thời.
+            Theo dõi đánh giá thật từ đơn đã giao, lưu note nội bộ, trạng thái phản hồi và flag tiêu cực vào database.
           </p>
+        </div>
+        <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/80 px-4 py-3 text-xs text-emerald-800">
+          Dữ liệu lấy từ API product reviews theo sản phẩm của seller. Không còn sinh phản hồi giả từ rating tổng quan.
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <article className="rounded-2xl border border-caramel/30 bg-white/80 p-4">
@@ -200,7 +187,7 @@ const SellerRatingsPage = () => {
       </section>
 
       <section className="sticker-card space-y-4 p-6">
-        <div className="grid gap-3 md:grid-cols-[1fr,180px,180px]">
+        <div className="grid gap-3 md:grid-cols-[1fr,180px,220px]">
           <label className="text-xs text-cocoa/60">
             Tìm kiếm phản hồi
             <div className="mt-1 flex items-center gap-2 rounded-xl border border-caramel/35 bg-white/85 px-3 py-2">
@@ -231,75 +218,75 @@ const SellerRatingsPage = () => {
           <div className="text-xs text-cocoa/60">
             Đối tượng theo dõi
             <div className="mt-1 rounded-xl border border-caramel/35 bg-white/85 px-3 py-2 text-sm text-cocoa">
-              {scopedPartners.length.toLocaleString('vi-VN')} đối tác ({isSeller ? 'theo shop hiện tại' : 'toàn bộ'})
+              {sellerName} ({roleLabel(role || 'seller')})
             </div>
           </div>
         </div>
 
         {filteredEntries.length === 0 ? (
-          <p className="text-sm text-cocoa/70">Không có phản hồi phù hợp bộ lọc.</p>
+          <p className="text-sm text-cocoa/70">Không có phản hồi phù hợp bộ lọc hoặc seller chưa có đánh giá sản phẩm.</p>
         ) : (
           <div className="space-y-3">
-            {filteredEntries.map((entry) => {
-              const state = feedbackStateMap[entry.id] ?? { note: '', replied: false, flagged: false };
-              return (
-                <article key={entry.id} className="rounded-2xl border border-caramel/30 bg-white/80 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-cocoa">{entry.customerName}</p>
-                      <p className="text-xs text-cocoa/60">
-                        {entry.productName} · {entry.partnerName} ({roleLabel(entry.partnerRole)})
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="inline-flex items-center gap-1 rounded-full border border-caramel/35 bg-white px-2 py-1 font-semibold text-cocoa">
-                        <Star className="h-3.5 w-3.5 text-amber-500" />
-                        {entry.stars}/5
-                      </span>
-                      <span className="text-cocoa/60">{new Date(entry.createdAt).toLocaleString('vi-VN')}</span>
-                    </div>
+            {filteredEntries.map((entry) => (
+              <article key={entry.id} className="rounded-2xl border border-caramel/30 bg-white/80 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-cocoa">{entry.customerName}</p>
+                    <p className="text-xs text-cocoa/60">
+                      {entry.productName} · {entry.partnerName} ({roleLabel(entry.partnerRole)})
+                    </p>
                   </div>
-
-                  <p className="mt-2 text-sm text-cocoa/80">{entry.content}</p>
-
-                  <div className="mt-3 grid gap-2 md:grid-cols-[1fr,auto,auto]">
-                    <textarea
-                      rows={2}
-                      value={state.note}
-                      onChange={(event) => updateEntryState(entry.id, { note: event.target.value })}
-                      placeholder="Nhập phản hồi nội bộ hoặc nội dung sẽ gửi cho khách..."
-                      className="w-full rounded-xl border border-caramel/35 bg-white/90 px-3 py-2 text-sm text-cocoa"
-                    />
-                    <button
-                      type="button"
-                      className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
-                        state.flagged ? 'border-rose-300 bg-rose-50 text-rose-700' : 'border-caramel/35 bg-white text-cocoa'
-                      }`}
-                      onClick={() => updateEntryState(entry.id, { flagged: !state.flagged })}
-                    >
-                      <ThumbsDown className="mr-1 inline h-3.5 w-3.5" />
-                      {state.flagged ? 'Đã gắn cờ' : 'Gắn cờ tiêu cực'}
-                    </button>
-                    <button
-                      type="button"
-                      className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
-                        state.replied ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-caramel/35 bg-white text-cocoa'
-                      }`}
-                      onClick={() => updateEntryState(entry.id, { replied: !state.replied })}
-                    >
-                      <ThumbsUp className="mr-1 inline h-3.5 w-3.5" />
-                      {state.replied ? 'Đã phản hồi' : 'Đánh dấu đã phản hồi'}
-                    </button>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-caramel/35 bg-white px-2 py-1 font-semibold text-cocoa">
+                      <Star className="h-3.5 w-3.5 text-amber-500" />
+                      {entry.stars}/5
+                    </span>
+                    <span className="text-cocoa/60">{new Date(entry.createdAt).toLocaleString('vi-VN')}</span>
                   </div>
-                </article>
-              );
-            })}
+                </div>
+
+                <p className="mt-2 text-sm text-cocoa/80">{entry.content}</p>
+
+                <div className="mt-3 grid gap-2 md:grid-cols-[1fr,auto,auto]">
+                  <textarea
+                    rows={2}
+                    value={noteDrafts[entry.id] ?? entry.note}
+                    onChange={(event) => setNoteDrafts((current) => ({ ...current, [entry.id]: event.target.value }))}
+                    onBlur={() => persistNoteIfChanged(entry)}
+                    placeholder="Nhập phản hồi nội bộ hoặc nội dung sẽ gửi cho khách..."
+                    className="w-full rounded-xl border border-caramel/35 bg-white/90 px-3 py-2 text-sm text-cocoa"
+                  />
+                  <button
+                    type="button"
+                    className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
+                      entry.flagged ? 'border-rose-300 bg-rose-50 text-rose-700' : 'border-caramel/35 bg-white text-cocoa'
+                    }`}
+                    onClick={() => updateEntryState(entry, { flagged: !entry.flagged })}
+                    disabled={updateReviewStateMutation.isPending}
+                  >
+                    <ThumbsDown className="mr-1 inline h-3.5 w-3.5" />
+                    {entry.flagged ? 'Đã gắn cờ' : 'Gắn cờ tiêu cực'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
+                      entry.replied ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-caramel/35 bg-white text-cocoa'
+                    }`}
+                    onClick={() => updateEntryState(entry, { replied: !entry.replied })}
+                    disabled={updateReviewStateMutation.isPending}
+                  >
+                    <ThumbsUp className="mr-1 inline h-3.5 w-3.5" />
+                    {entry.replied ? 'Đã phản hồi' : 'Đánh dấu đã phản hồi'}
+                  </button>
+                </div>
+              </article>
+            ))}
           </div>
         )}
 
         <div className="rounded-xl border border-caramel/30 bg-caramel/10 px-3 py-2 text-xs text-cocoa/65">
           <MessageSquareText className="mr-1 inline h-3.5 w-3.5" />
-          Dữ liệu chi tiết từng đánh giá đang được mô phỏng từ dữ liệu tổng hợp hiện có để hỗ trợ luồng vận hành/phản hồi.
+          Note và trạng thái xử lý được lưu qua endpoint seller reviews, nên refresh hoặc đổi máy vẫn giữ dữ liệu.
         </div>
       </section>
     </div>

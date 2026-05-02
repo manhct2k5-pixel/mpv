@@ -13,6 +13,14 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query("""
         select distinct o from Order o
+        left join fetch o.user
+        left join fetch o.items
+        order by o.createdAt desc
+        """)
+    List<Order> findAllWithUserAndItemsOrderByCreatedAtDesc();
+
+    @Query("""
+        select distinct o from Order o
         join o.items i
         where i.productId in :productIds
         order by o.createdAt desc

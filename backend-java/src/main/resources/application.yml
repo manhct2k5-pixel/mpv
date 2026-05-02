@@ -4,13 +4,14 @@ spring:
   jackson:
     deserialization:
       read-enums-using-to-string: true
+  jpa:
+    open-in-view: false
 
 server:
   port: 8080
 
 jwt:
-  # HS256 requires a key >= 32 bytes; keep this long default to avoid WeakKeyException
-  secret: ${JWT_SECRET:wealthwallet-secret-key-for-jwt-tokens-very-long-and-secure}
+  secret: ${JWT_SECRET:}
   expiration: ${JWT_EXPIRATION:86400000}
 
 management:
@@ -20,6 +21,8 @@ management:
         include: health,info
 
 app:
+  seed:
+    demo-data: ${APP_SEED_DEMO_DATA:false}
   ai:
     style-assistant:
       enabled: ${STYLE_AI_ENABLED:true}
@@ -75,11 +78,14 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.H2Dialect
     defer-datasource-initialization: true
   sql:
     init:
       mode: never
+
+app:
+  seed:
+    demo-data: true
 
 ---
 spring:
@@ -97,7 +103,6 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.MySQLDialect
     defer-datasource-initialization: true
   sql:
     init:

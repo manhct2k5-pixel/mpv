@@ -2,6 +2,7 @@ package com.wealthwallet.controller;
 
 import com.wealthwallet.dto.PaginatedResponse;
 import com.wealthwallet.dto.StoreCategoryResponse;
+import com.wealthwallet.dto.StorePolicyResponse;
 import com.wealthwallet.dto.StoreProductCreateRequest;
 import com.wealthwallet.dto.StoreProductDetailResponse;
 import com.wealthwallet.dto.StoreProductSummaryResponse;
@@ -9,6 +10,7 @@ import com.wealthwallet.dto.StoreProductUpdateRequest;
 import com.wealthwallet.dto.StoreProductVariantRequest;
 import com.wealthwallet.dto.StoreProductVariantResponse;
 import com.wealthwallet.dto.StoreProductVariantUpdateRequest;
+import com.wealthwallet.service.AdminSystemConfigService;
 import com.wealthwallet.service.StoreCatalogService;
 import com.wealthwallet.service.StoreProductManagementService;
 import com.wealthwallet.service.UserService;
@@ -31,9 +33,15 @@ import java.util.List;
 @RequiredArgsConstructor
 public class StoreCatalogController {
 
+    private final AdminSystemConfigService adminSystemConfigService;
     private final StoreCatalogService storeCatalogService;
     private final StoreProductManagementService storeProductManagementService;
     private final UserService userService;
+
+    @GetMapping("/policy")
+    public StorePolicyResponse policy() {
+        return new StorePolicyResponse(adminSystemConfigService.get().maxRefundDays());
+    }
 
     @GetMapping("/categories")
     public List<StoreCategoryResponse> categories() {

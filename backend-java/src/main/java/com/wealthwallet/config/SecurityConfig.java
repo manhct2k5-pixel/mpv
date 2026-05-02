@@ -1,5 +1,6 @@
 package com.wealthwallet.config;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -27,6 +28,12 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, ex) ->
+                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED))
+                        .accessDeniedHandler((request, response, ex) ->
+                                response.sendError(HttpServletResponse.SC_FORBIDDEN))
+                )
                 .authorizeHttpRequests(registry -> registry
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/login", "/api/register", "/api/register/seller", "/actuator/**").permitAll()
@@ -34,6 +41,7 @@ public class SecurityConfig {
                                 HttpMethod.GET,
                                 "/api/store/categories",
                                 "/api/store/categories/**",
+                                "/api/store/policy",
                                 "/api/store/products",
                                 "/api/store/products/**",
                                 "/api/store/lookbooks",
@@ -41,19 +49,19 @@ public class SecurityConfig {
                                 "/api/store/stylists"
                         ).permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/store/products", "/api/store/products/**")
-                        .hasAnyRole("ADMIN", "SELLER", "WAREHOUSE")
+                        .hasAnyRole("ADMIN", "SELLER", "WAREHOUSE", "STYLES")
                         .requestMatchers(HttpMethod.PUT, "/api/store/products", "/api/store/products/**")
-                        .hasAnyRole("ADMIN", "SELLER", "WAREHOUSE")
+                        .hasAnyRole("ADMIN", "SELLER", "WAREHOUSE", "STYLES")
                         .requestMatchers(HttpMethod.DELETE, "/api/store/products", "/api/store/products/**")
-                        .hasAnyRole("ADMIN", "SELLER", "WAREHOUSE")
+                        .hasAnyRole("ADMIN", "SELLER", "WAREHOUSE", "STYLES")
                         .requestMatchers(HttpMethod.POST, "/api/store/lookbooks", "/api/store/lookbooks/**")
-                        .hasAnyRole("ADMIN", "WAREHOUSE")
+                        .hasAnyRole("ADMIN", "WAREHOUSE", "STYLES")
                         .requestMatchers(HttpMethod.PUT, "/api/store/lookbooks", "/api/store/lookbooks/**")
-                        .hasAnyRole("ADMIN", "WAREHOUSE")
+                        .hasAnyRole("ADMIN", "WAREHOUSE", "STYLES")
                         .requestMatchers(HttpMethod.DELETE, "/api/store/lookbooks", "/api/store/lookbooks/**")
-                        .hasAnyRole("ADMIN", "WAREHOUSE")
+                        .hasAnyRole("ADMIN", "WAREHOUSE", "STYLES")
                         .requestMatchers(HttpMethod.POST, "/api/store/orders/manual")
-                        .hasAnyRole("ADMIN", "WAREHOUSE")
+                        .hasRole("ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()

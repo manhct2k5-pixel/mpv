@@ -354,24 +354,24 @@ export const collections: Record<string, StoreCollection> = {
 
 export const lookbookStories: LookbookStory[] = [
   {
-    title: 'Cafe sáng cuối tuần',
-    description: 'Set cardigan + váy hoa kem tạo vibe mềm mại.',
-    mood: 'Ngọt dịu'
+    title: 'Vanilla linen cho ngay nang nhe',
+    description: 'Đầm linen vanilla phối cùng tote canvas be cho buổi cafe sáng rất sáng outfit.',
+    mood: 'Cafe sang'
   },
   {
-    title: 'Đi học đi làm',
-    description: 'Sơ mi latte + quần kaki cacao, gọn gàng lịch sự.',
-    mood: 'Thanh lịch'
+    title: 'Sage weekend cho chang',
+    description: 'Polo sage weekend đi cùng jean straight khói, gọn gàng nhưng vẫn trẻ trung.',
+    mood: 'Weekend'
   },
   {
-    title: 'Dạo phố tối',
-    description: 'Áo thun hạt dẻ + túi mini kem, dễ thương năng động.',
-    mood: 'Tươi vui'
+    title: 'Picnic latte ngoai troi',
+    description: 'Set picnic sage latte kết hợp baby tee hồng dusty và vòng cổ bạc tối giản.',
+    mood: 'Di choi'
   },
   {
-    title: 'Chuyến đi xa',
-    description: 'Hoodie unisex + mũ len mocha, ấm áp cả ngày.',
-    mood: 'Ấm áp'
+    title: 'Cong so kem mocha',
+    description: 'Combo công sở kem mocha giúp outfit sáng, sạch và rất hợp ngày đi làm cần chỉn chu.',
+    mood: 'Cong so'
   }
 ];
 

@@ -9,7 +9,12 @@ const WishlistPage = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { data: profile, isLoading: profileLoading } = useQuery({
+  const {
+    data: profile,
+    isLoading: profileLoading,
+    isError: profileError,
+    refetch: refetchProfile
+  } = useQuery({
     queryKey: ['profile'],
     queryFn: financeApi.me,
     enabled: isAuthenticated,
@@ -17,7 +22,12 @@ const WishlistPage = () => {
   });
   const isCustomer = (profile?.role ?? '').toLowerCase() === 'user';
 
-  const { data: wishlist = [], isLoading } = useQuery({
+  const {
+    data: wishlist = [],
+    isLoading,
+    isError: wishlistError,
+    refetch: refetchWishlist
+  } = useQuery({
     queryKey: ['store-wishlist'],
     queryFn: storeApi.wishlist,
     enabled: isAuthenticated && isCustomer
@@ -88,10 +98,26 @@ const WishlistPage = () => {
     );
   }
 
+  if (profileError || !profile) {
+    return (
+      <div className="space-y-4 rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
+        <p>Không tải được thông tin tài khoản để mở wishlist.</p>
+        <div className="flex flex-wrap gap-3">
+          <button type="button" className="btn-primary" onClick={() => void refetchProfile()}>
+            Tải lại
+          </button>
+          <Link to="/login" className="btn-secondary !border-rose-200/80 !bg-white/90">
+            Đăng nhập lại
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (!isCustomer) {
     return (
       <div className="rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
-        Wishlist chỉ dành cho tài khoản khách hàng (Customer).
+        Wishlist chỉ dành cho tài khoản khách hàng.
       </div>
     );
   }
@@ -100,6 +126,22 @@ const WishlistPage = () => {
     return (
       <div className="rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
         Đang tải wishlist...
+      </div>
+    );
+  }
+
+  if (wishlistError) {
+    return (
+      <div className="space-y-4 rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
+        <p>Không tải được wishlist của bạn.</p>
+        <div className="flex flex-wrap gap-3">
+          <button type="button" className="btn-primary" onClick={() => void refetchWishlist()}>
+            Tải lại wishlist
+          </button>
+          <Link to="/" className="btn-secondary !border-rose-200/80 !bg-white/90">
+            Về trang chủ
+          </Link>
+        </div>
       </div>
     );
   }

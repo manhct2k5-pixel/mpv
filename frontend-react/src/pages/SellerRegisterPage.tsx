@@ -1,10 +1,15 @@
 import { useState } from 'react';
+import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { ArrowRight, BadgeCheck, FileCheck2, Lock, Mail, Send, Store, User } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Lock, Mail, Phone, Store, User } from 'lucide-react';
 import AuthLayout from '../components/layout/AuthLayout.tsx';
-import { api } from '../services/api.ts';
+import { api, getApiErrorMessage } from '../services/api.ts';
 import { useAuthStore } from '../store/auth.ts';
+import {
+  getSellerBusinessRequestValidationMessage,
+  normalizeSellerBusinessRequestPayload
+} from '../utils/sellerApplication.ts';
 
 type AuthTab = 'register' | 'login';
 type StatusTone = 'success' | 'error' | 'info';
@@ -38,29 +43,29 @@ const SellerRegisterPage = () => {
     storeAddress: '',
     storeDescription: '',
     industry: INDUSTRY_OPTIONS[0],
-    monthlyIncome: '1',
-    otpCode: ''
+    monthlyIncome: '1'
   });
   const [loginData, setLoginData] = useState({
     email: '',
     password: ''
   });
-  const [documentFileName, setDocumentFileName] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [status, setStatus] = useState<{ tone: StatusTone; message: string } | null>(null);
 
   const registerMutation = useMutation({
     mutationFn: async () => {
+      const sellerProfilePayload = normalizeSellerBusinessRequestPayload({
+        storeName: registerData.storeName,
+        storePhone: registerData.storePhone,
+        storeAddress: registerData.storeAddress,
+        storeDescription: registerData.storeDescription
+      });
       const response = await api.post('/register/seller', {
         fullName: registerData.fullName.trim(),
         email: registerData.email.trim(),
         password: registerData.password,
         monthlyIncome: Number(registerData.monthlyIncome || '1'),
-        storeName: registerData.storeName.trim(),
-        storePhone: registerData.storePhone.trim() || undefined,
-        storeAddress: registerData.storeAddress.trim() || undefined,
-        storeDescription: registerData.storeDescription.trim() || undefined
+        ...sellerProfilePayload
       });
       return response.data;
     },
@@ -71,9 +76,15 @@ const SellerRegisterPage = () => {
           'Đăng ký thành công. Hồ sơ seller đang chờ admin duyệt. Sau khi duyệt, bạn có thể đăng nhập để bán hàng.'
       });
     },
-    onError: (error: any) => {
-      const message = error.response?.data?.message || error.response?.data?.error || 'Không thể gửi đăng ký seller.';
-      const isApprovalMessage = String(message).toLowerCase().includes('admin') || error.response?.status === 403;
+    onError: (error: unknown) => {
+      const message = getApiErrorMessage(error, 'Không thể gửi đăng ký seller.', {
+        networkMessage:
+          'Không kết nối được tới backend. Hãy chạy backend ở cổng 8080 trước khi gửi đăng ký seller.',
+        validationMessage: 'Thông tin đăng ký chưa hợp lệ. Vui lòng kiểm tra lại biểu mẫu.'
+      });
+      const isApprovalMessage =
+        String(message).toLowerCase().includes('admin') ||
+        (axios.isAxiosError(error) && error.response?.status === 403);
       setStatus({
         tone: isApprovalMessage ? 'info' : 'error',
         message: isApprovalMessage
@@ -99,61 +110,38 @@ const SellerRegisterPage = () => {
       login(data.token);
       setStatus({ tone: 'success', message: 'Đăng nhập thành công. Đang chuyển hướng...' });
       try {
-        const profileResponse = await api.get('/user');
-        const rawRole = String(profileResponse.data?.role ?? '').toLowerCase();
-        const role = rawRole === 'styles' ? 'warehouse' : rawRole;
-        const nextPath =
-          role === 'admin'
-            ? '/admin'
-            : role === 'warehouse'
-              ? '/staff'
-              : role === 'seller'
-                ? '/seller'
-                : '/tai-khoan';
-        setTimeout(() => navigate(nextPath), 400);
+        await api.get('/user');
+        setTimeout(() => navigate('/'), 400);
       } catch {
-        setTimeout(() => navigate('/tai-khoan'), 400);
+        setTimeout(() => navigate('/'), 400);
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       setStatus({
         tone: 'error',
-        message: error.response?.data?.error || error.response?.data?.message || 'Đăng nhập thất bại.'
+        message: getApiErrorMessage(error, 'Đăng nhập thất bại.', {
+          networkMessage:
+            'Không kết nối được tới backend. Hãy chạy backend ở cổng 8080 hoặc dùng start.bat để mở cả backend và frontend.',
+          validationMessage: 'Email không hợp lệ. Vui lòng kiểm tra lại địa chỉ email.'
+        })
       });
     }
   });
-
-  const sendOtp = () => {
-    if (!registerData.email.trim() && !registerData.storePhone.trim()) {
-      setStatus({
-        tone: 'error',
-        message: 'Vui lòng nhập Email hoặc SĐT trước khi gửi OTP.'
-      });
-      return;
-    }
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedOtp(otp);
-    setStatus({
-      tone: 'info',
-      message: `OTP xác thực đã gửi (demo): ${otp}. Vui lòng nhập mã để hoàn tất đăng ký.`
-    });
-  };
 
   const handleRegisterSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     setStatus(null);
 
-    if (!documentFileName) {
+    const sellerProfileMessage = getSellerBusinessRequestValidationMessage({
+      storeName: registerData.storeName,
+      storePhone: registerData.storePhone,
+      storeAddress: registerData.storeAddress,
+      storeDescription: registerData.storeDescription
+    });
+    if (sellerProfileMessage) {
       setStatus({
         tone: 'error',
-        message: 'Vui lòng upload giấy tờ xác minh trước khi gửi đăng ký.'
-      });
-      return;
-    }
-    if (!generatedOtp || registerData.otpCode.trim() !== generatedOtp) {
-      setStatus({
-        tone: 'error',
-        message: 'OTP chưa đúng hoặc chưa được gửi. Vui lòng kiểm tra lại.'
+        message: sellerProfileMessage
       });
       return;
     }
@@ -280,14 +268,17 @@ const SellerRegisterPage = () => {
               </label>
               <label className="text-sm font-medium text-cocoa">
                 Số điện thoại
-                <input
-                  type="tel"
-                  value={registerData.storePhone}
-                  onChange={(event) => setRegisterData((prev) => ({ ...prev, storePhone: event.target.value }))}
-                  required
-                  className="mt-2 w-full rounded-2xl border-2 border-caramel/40 bg-white/80 px-4 py-3 text-sm text-cocoa"
-                  placeholder="0901234567"
-                />
+                <div className="relative mt-2">
+                  <Phone className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-mocha/70" />
+                  <input
+                    type="tel"
+                    value={registerData.storePhone}
+                    onChange={(event) => setRegisterData((prev) => ({ ...prev, storePhone: event.target.value }))}
+                    required
+                    className="w-full rounded-2xl border-2 border-caramel/40 bg-white/80 px-12 py-3 text-sm text-cocoa"
+                    placeholder="0901234567"
+                  />
+                </div>
               </label>
             </div>
 
@@ -347,22 +338,12 @@ const SellerRegisterPage = () => {
                 </select>
               </label>
 
-              <label className="text-sm font-medium text-cocoa">
-                Upload giấy tờ xác minh
-                <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-2xl border-2 border-dashed border-caramel/40 bg-white/80 px-4 py-3 text-sm text-cocoa/75">
-                  <FileCheck2 className="h-4 w-4 text-mocha/70" />
-                  <span>{documentFileName || 'Chọn file xác minh (PDF/JPG/PNG)'}</span>
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept=".pdf,image/*"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      setDocumentFileName(file?.name ?? '');
-                    }}
-                  />
-                </label>
-              </label>
+              <div className="rounded-2xl border-2 border-caramel/30 bg-white/80 p-4 text-sm text-cocoa/75">
+                <p className="font-semibold text-cocoa">Hồ sơ xác minh</p>
+                <p className="mt-2 text-xs font-normal leading-5 text-cocoa/65">
+                  Biểu mẫu này chỉ gửi dữ liệu cửa hàng lên backend. Giấy tờ bổ sung sẽ do admin yêu cầu riêng khi xét duyệt hồ sơ.
+                </p>
+              </div>
             </div>
 
             <label className="text-sm font-medium text-cocoa">
@@ -371,26 +352,11 @@ const SellerRegisterPage = () => {
                 rows={3}
                 value={registerData.storeDescription}
                 onChange={(event) => setRegisterData((prev) => ({ ...prev, storeDescription: event.target.value }))}
+                required
                 className="mt-2 w-full rounded-2xl border-2 border-caramel/40 bg-white/80 px-4 py-3 text-sm text-cocoa"
                 placeholder="Mô tả ngắn về sản phẩm, phân khúc và phong cách phục vụ."
               />
             </label>
-
-            <div className="grid gap-3 sm:grid-cols-[1fr,160px]">
-              <label className="text-sm font-medium text-cocoa">
-                OTP xác thực
-                <input
-                  value={registerData.otpCode}
-                  onChange={(event) => setRegisterData((prev) => ({ ...prev, otpCode: event.target.value }))}
-                  className="mt-2 w-full rounded-2xl border-2 border-caramel/40 bg-white/80 px-4 py-3 text-sm text-cocoa"
-                  placeholder="Nhập mã OTP"
-                />
-              </label>
-              <button type="button" onClick={sendOtp} className="btn-secondary mt-7 h-[46px]">
-                <Send className="h-4 w-4" />
-                Gửi OTP
-              </button>
-            </div>
 
             <div className="rounded-2xl border-2 border-caramel/30 bg-white/80 p-4 text-sm text-cocoa/80">
               <p className="font-semibold text-cocoa">Quy trình duyệt seller</p>
@@ -403,7 +369,7 @@ const SellerRegisterPage = () => {
                 ))}
               </ul>
               <p className="mt-3 text-xs text-cocoa/60">
-                Sau khi gửi OTP và hồ sơ, tài khoản sẽ ở trạng thái chờ admin duyệt trước khi được đăng bán.
+                Sau khi gửi hồ sơ, tài khoản sẽ ở trạng thái chờ admin duyệt trước khi được đăng bán.
               </p>
             </div>
 

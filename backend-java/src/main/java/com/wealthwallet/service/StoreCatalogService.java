@@ -18,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -101,7 +103,7 @@ public class StoreCatalogService {
                 product.getBrand(),
                 product.getMaterial(),
                 product.getFit(),
-                List.copyOf(product.getImageUrls()),
+                normalizeImageUrls(product.getImageUrls()),
                 variants
         );
     }
@@ -129,7 +131,8 @@ public class StoreCatalogService {
                 pickPrimaryImage(product),
                 product.getFeatured(),
                 product.getAverageRating(),
-                product.getReviewCount()
+                product.getReviewCount(),
+                totalStock(product)
         );
     }
 
@@ -140,19 +143,47 @@ public class StoreCatalogService {
                 variant.getColor(),
                 resolveVariantPrice(variant),
                 variant.getStockQty(),
-                variant.getImageUrl()
+                normalizeImageUrl(variant.getImageUrl())
         );
     }
 
     private String pickPrimaryImage(Product product) {
-        if (product.getImageUrls() != null && !product.getImageUrls().isEmpty()) {
-            return product.getImageUrls().get(0);
+        List<String> normalizedProductImages = normalizeImageUrls(product.getImageUrls());
+        if (!normalizedProductImages.isEmpty()) {
+            String primary = normalizedProductImages.get(0);
+            if (primary != null) {
+                return primary;
+            }
         }
         return product.getVariants().stream()
                 .map(ProductVariant::getImageUrl)
-                .filter(url -> url != null && !url.isBlank())
+                .map(this::normalizeImageUrl)
+                .filter(url -> url != null)
                 .findFirst()
                 .orElse(null);
+    }
+
+    private String normalizeImageUrl(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private List<String> normalizeImageUrls(List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            return List.of();
+        }
+
+        LinkedHashSet<String> uniqueUrls = new LinkedHashSet<>();
+        for (String imageUrl : imageUrls) {
+            String normalized = normalizeImageUrl(imageUrl);
+            if (normalized != null) {
+                uniqueUrls.add(normalized);
+            }
+        }
+        return new ArrayList<>(uniqueUrls);
     }
 
     private Double resolveVariantPrice(ProductVariant variant) {
@@ -164,6 +195,16 @@ public class StoreCatalogService {
             return product.getSalePrice();
         }
         return product != null ? product.getBasePrice() : null;
+    }
+
+    private Integer totalStock(Product product) {
+        if (product.getVariants() == null || product.getVariants().isEmpty()) {
+            return 0;
+        }
+        return product.getVariants().stream()
+                .map(ProductVariant::getStockQty)
+                .filter(stock -> stock != null && stock > 0)
+                .reduce(0, Integer::sum);
     }
 
     private Gender parseGender(String value) {

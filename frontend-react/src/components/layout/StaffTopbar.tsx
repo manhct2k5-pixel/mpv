@@ -28,27 +28,31 @@ const StaffTopbar = ({
     let count = 0;
     if (overview.pendingOrders > 0) count += 1;
     if (overview.packingOrders > 0) count += 1;
+    if (overview.handoverOrders > 0) count += 1;
     if (overview.openTickets > 0) count += 1;
-    if (overview.openReturns > 0) count += 1;
+    if (overview.newReturns > 0 || overview.openReturns > 0) count += 1;
     return count;
   }, [overview]);
 
   const notifications = useMemo(() => {
     const items: string[] = [];
     if (overview.pendingOrders > 0) {
-      items.push(`${overview.pendingOrders} đơn chờ staff tiếp nhận.`);
+      items.push(`${overview.pendingOrders} đơn chờ tiếp nhận hoặc xử lý nội bộ.`);
     }
     if (overview.packingOrders > 0) {
-      items.push(`${overview.packingOrders} đơn đang ở bước đóng gói/QC.`);
+      items.push(`${overview.packingOrders} đơn đang chờ QC hoặc đóng gói.`);
     }
     if (overview.handoverOrders > 0) {
-      items.push(`${overview.handoverOrders} đơn cần bàn giao vận chuyển.`);
+      items.push(`${overview.handoverOrders} đơn đã đóng gói và chờ tạo vận đơn.`);
     }
     if (overview.openTickets > 0) {
       items.push(`${overview.openTickets} ticket hỗ trợ đang mở.`);
     }
+    if (overview.newReturns > 0) {
+      items.push(`${overview.newReturns} yêu cầu hoàn trả mới vừa được khách gửi.`);
+    }
     if (overview.openReturns > 0) {
-      items.push(`${overview.openReturns} yêu cầu đổi trả cần xác minh.`);
+      items.push(`${overview.openReturns} yêu cầu hoàn trả đang chờ xử lý.`);
     }
     if (items.length === 0) {
       items.push('Không có cảnh báo mới trong ca trực hiện tại.');
@@ -111,7 +115,7 @@ const StaffTopbar = ({
             aria-label="Thông báo staff"
           >
             <Bell className="h-4 w-4" />
-            {unreadCount > 0 ? <span className="admin-notify-badge">{unreadCount}</span> : null}
+            {unreadCount > 0 ? <span className="admin-notify-badge">{Math.min(99, unreadCount)}</span> : null}
           </button>
           {showNotifications ? (
             <div className="admin-user-menu w-[290px]">

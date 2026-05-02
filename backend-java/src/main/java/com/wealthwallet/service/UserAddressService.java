@@ -207,7 +207,7 @@ public class UserAddressService {
 
     private UserAccount currentCustomer() {
         UserAccount user = userService.getCurrentUser();
-        userService.ensureCustomer(user);
+        userService.ensureStoreBuyer(user);
         return user;
     }
 

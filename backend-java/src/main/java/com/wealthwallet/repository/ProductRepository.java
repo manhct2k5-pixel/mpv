@@ -49,6 +49,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     List<Product> findBySellerIdOrderByCreatedAtDesc(Long sellerId);
 
+    List<Product> findBySellerIdAndActiveTrueOrderByCreatedAtDesc(Long sellerId);
+
     long countBySellerId(Long sellerId);
 
     long countByActiveTrue();

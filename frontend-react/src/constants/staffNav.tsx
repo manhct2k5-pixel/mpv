@@ -15,7 +15,7 @@ export interface StaffNavItem {
   label: string;
   path: string;
   icon: LucideIcon;
-  badgeKey?: 'pendingOrders' | 'packingOrders' | 'handoverOrders' | 'openTickets' | 'openReturns';
+  badgeKey?: 'pendingOrders' | 'packingOrders' | 'handoverOrders' | 'openTickets' | 'openReturns' | 'returnFocus';
 }
 
 export interface StaffOverviewSignal {
@@ -24,6 +24,7 @@ export interface StaffOverviewSignal {
   handoverOrders: number;
   openTickets: number;
   openReturns: number;
+  newReturns: number;
 }
 
 export const staffNavItems: StaffNavItem[] = [
@@ -38,7 +39,7 @@ export const staffNavItems: StaffNavItem[] = [
     badgeKey: 'handoverOrders'
   },
   { key: 'tickets', label: 'Ticket hỗ trợ', path: '/staff/tickets', icon: LifeBuoy, badgeKey: 'openTickets' },
-  { key: 'returns', label: 'Đổi trả', path: '/staff/returns', icon: RefreshCcw, badgeKey: 'openReturns' },
+  { key: 'returns', label: 'Đổi trả', path: '/staff/returns', icon: RefreshCcw, badgeKey: 'returnFocus' },
   { key: 'status', label: 'Cập nhật trạng thái đơn', path: '/staff/status', icon: ClipboardCheck },
   { key: 'profile', label: 'Hồ sơ cá nhân', path: '/staff/profile', icon: UserRound }
 ];

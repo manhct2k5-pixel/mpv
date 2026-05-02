@@ -4,6 +4,7 @@ import { Download, LayoutGrid, PackagePlus, Plus, Sparkles, Trash2, UploadCloud 
 import { financeApi, storeApi } from '../services/api.ts';
 import type { StoreProductDetail, StoreProductSummary } from '../types/store';
 import { useSearchParams } from 'react-router-dom';
+import { readFilesAsDataUrls } from '../utils/fileUploads';
 
 type VariantInput = {
   id?: number;
@@ -21,6 +22,12 @@ const emptyVariant = (): VariantInput => ({
   stockQty: '',
   imageUrl: ''
 });
+
+const parseImageUrls = (value: string) =>
+  value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
 
 const ProductManagementPage = () => {
   const queryClient = useQueryClient();
@@ -129,15 +136,12 @@ const ProductManagementPage = () => {
         .map((variant) => ({
           size: variant.size.trim(),
           color: variant.color.trim(),
-          priceOverride: variant.priceOverride ? Number(variant.priceOverride) : undefined,
-          stockQty: variant.stockQty ? Number(variant.stockQty) : 0,
+          priceOverride: variant.priceOverride.trim() ? Number(variant.priceOverride) : undefined,
+          stockQty: variant.stockQty.trim() ? Number(variant.stockQty) : 0,
           imageUrl: variant.imageUrl.trim() || undefined
         }));
 
-      const imageUrls = formData.imageUrls
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean);
+      const imageUrls = parseImageUrls(formData.imageUrls);
 
       if (cleanVariants.length === 0) {
         throw new Error('Vui lòng thêm ít nhất một biến thể.');
@@ -175,7 +179,7 @@ const ProductManagementPage = () => {
         basePrice: Number(formData.basePrice),
         salePrice: formData.salePrice ? Number(formData.salePrice) : undefined,
         featured: formData.featured,
-        imageUrls: imageUrls.length > 0 ? imageUrls : undefined
+        imageUrls
       });
 
       const variantUpdates = variants
@@ -184,9 +188,9 @@ const ProductManagementPage = () => {
           storeApi.updateVariant(selectedProductId, variant.id as number, {
             size: variant.size.trim() || undefined,
             color: variant.color.trim() || undefined,
-            priceOverride: variant.priceOverride ? Number(variant.priceOverride) : undefined,
-            stockQty: variant.stockQty ? Number(variant.stockQty) : undefined,
-            imageUrl: variant.imageUrl.trim() || undefined
+            priceOverride: variant.priceOverride.trim() ? Number(variant.priceOverride) : null,
+            stockQty: variant.stockQty.trim() ? Number(variant.stockQty) : 0,
+            imageUrl: variant.imageUrl.trim() || null
           })
         );
       const variantCreates = variants
@@ -280,6 +284,60 @@ const ProductManagementPage = () => {
     event.preventDefault();
     setStatusMessage(null);
     mutation.mutate();
+  };
+
+  const productImageUrls = useMemo(() => parseImageUrls(formData.imageUrls), [formData.imageUrls]);
+
+  const setProductImageUrls = (imageUrls: string[]) => {
+    setFormData((prev) => ({
+      ...prev,
+      imageUrls: imageUrls.join('\n')
+    }));
+  };
+
+  const handleProductImagesUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) {
+      return;
+    }
+    try {
+      const uploadedImages = await readFilesAsDataUrls(files);
+      if (uploadedImages.length === 0) {
+        throw new Error('Vui lòng chọn file ảnh hợp lệ.');
+      }
+      setProductImageUrls([...productImageUrls, ...uploadedImages]);
+      setStatusMessage(`Đã thêm ${uploadedImages.length} ảnh từ máy tính.`);
+    } catch (error: any) {
+      setStatusMessage(error.message || 'Không thể đọc ảnh từ máy tính.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const handleRemoveProductImage = (indexToRemove: number) => {
+    setProductImageUrls(productImageUrls.filter((_, index) => index !== indexToRemove));
+  };
+
+  const handleVariantImageUpload = async (
+    index: number,
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) {
+      return;
+    }
+    try {
+      const uploadedImages = await readFilesAsDataUrls(files);
+      if (uploadedImages.length === 0) {
+        throw new Error('Vui lòng chọn file ảnh hợp lệ.');
+      }
+      handleVariantChange(index, 'imageUrl', uploadedImages[0]);
+      setStatusMessage('Đã cập nhật ảnh biến thể từ máy tính.');
+    } catch (error: any) {
+      setStatusMessage(error.message || 'Không thể đọc ảnh biến thể.');
+    } finally {
+      event.target.value = '';
+    }
   };
 
   const loadProductForEdit = async (product: StoreProductSummary) => {
@@ -574,6 +632,32 @@ const ProductManagementPage = () => {
               rows={2}
               className="mt-2 w-full rounded-2xl border-2 border-caramel/30 bg-white/80 px-4 py-2 text-sm text-cocoa outline-none focus:border-mocha"
             />
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <label className="btn-secondary btn-secondary--sm cursor-pointer">
+                <UploadCloud className="h-4 w-4" />
+                Thêm ảnh từ máy tính
+                <input type="file" accept="image/*" multiple className="sr-only" onChange={handleProductImagesUpload} />
+              </label>
+              <span className="text-xs text-cocoa/60">
+                Ảnh local sẽ được lưu trực tiếp vào sản phẩm để demo hiển thị đúng ngay trên web.
+              </span>
+            </div>
+            {productImageUrls.length > 0 ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                {productImageUrls.map((image, index) => (
+                  <div key={`${index}-${image.slice(0, 24)}`} className="overflow-hidden rounded-2xl border border-caramel/25 bg-white/80">
+                    <img src={image} alt={`Ảnh sản phẩm ${index + 1}`} className="h-28 w-full object-cover" />
+                    <button
+                      type="button"
+                      className="w-full border-t border-caramel/20 px-3 py-2 text-xs font-semibold text-cocoa/75 hover:bg-caramel/10"
+                      onClick={() => handleRemoveProductImage(index)}
+                    >
+                      Xóa ảnh này
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </label>
           <label className="flex items-center gap-3 text-sm text-cocoa/70">
             <input
@@ -625,22 +709,45 @@ const ProductManagementPage = () => {
                 onChange={(event) => handleVariantChange(index, 'stockQty', event.target.value)}
                 className="rounded-2xl border-2 border-caramel/30 bg-white/80 px-4 py-2 text-sm text-cocoa outline-none focus:border-mocha"
               />
-              <div className="flex items-center gap-2 sm:col-span-2">
-                <input
-                  placeholder="Ảnh biến thể"
-                  value={variant.imageUrl}
-                  onChange={(event) => handleVariantChange(index, 'imageUrl', event.target.value)}
-                  className="w-full rounded-2xl border-2 border-caramel/30 bg-white/80 px-4 py-2 text-sm text-cocoa outline-none focus:border-mocha"
-                />
-                {variants.length > 1 && !variant.id && (
-                  <button
-                    type="button"
-                    className="rounded-2xl border border-caramel/40 p-2 text-mocha hover:bg-caramel/20"
-                    onClick={() => handleRemoveVariant(index)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
+              <div className="space-y-2 sm:col-span-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    placeholder="Ảnh biến thể"
+                    value={variant.imageUrl}
+                    onChange={(event) => handleVariantChange(index, 'imageUrl', event.target.value)}
+                    className="w-full rounded-2xl border-2 border-caramel/30 bg-white/80 px-4 py-2 text-sm text-cocoa outline-none focus:border-mocha"
+                  />
+                  <label className="btn-secondary btn-secondary--sm cursor-pointer whitespace-nowrap">
+                    Từ máy
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      onChange={(event) => void handleVariantImageUpload(index, event)}
+                    />
+                  </label>
+                  {variants.length > 1 && !variant.id && (
+                    <button
+                      type="button"
+                      className="rounded-2xl border border-caramel/40 p-2 text-mocha hover:bg-caramel/20"
+                      onClick={() => handleRemoveVariant(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {variant.imageUrl ? (
+                  <div className="flex items-center gap-3 rounded-2xl border border-caramel/20 bg-white/70 p-2">
+                    <img src={variant.imageUrl} alt={`Ảnh biến thể ${variant.size || index + 1}`} className="h-16 w-16 rounded-xl object-cover" />
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-cocoa/70 underline"
+                      onClick={() => handleVariantChange(index, 'imageUrl', '')}
+                    >
+                      Xóa ảnh biến thể
+                    </button>
+                  </div>
+                ) : null}
               </div>
               {mode === 'edit' && variant.id && (
                 <button

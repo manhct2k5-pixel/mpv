@@ -20,6 +20,16 @@ const priorityLabel: Record<SupportTicketPriority, string> = {
 const getErrorMessage = (error: any, fallback: string) =>
   error?.response?.data?.message || error?.response?.data?.error || fallback;
 
+const canMoveTicketToWaiting = (status?: SupportTicketStatus | null) => status === 'new' || status === 'processing';
+
+const canReplyToTicket = (status?: SupportTicketStatus | null) =>
+  status === 'new' || status === 'processing' || status === 'waiting';
+
+const canResolveTicket = (status?: SupportTicketStatus | null) => status === 'processing' || status === 'waiting';
+
+const canCloseTicket = (status?: SupportTicketStatus | null) =>
+  status === 'new' || status === 'processing' || status === 'waiting' || status === 'resolved';
+
 const StaffTicketsPage = () => {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<'all' | SupportTicketStatus>('all');
@@ -139,9 +149,9 @@ const StaffTicketsPage = () => {
       selectedTicket.id,
       {
         status: 'waiting',
-        note: 'Chuyển cấp trên xử lý.'
+        note: 'Chuyển sang chờ phản hồi từ khách hoặc bộ phận liên quan.'
       },
-      'Đã chuyển ticket cho cấp trên.'
+      'Đã chuyển ticket sang chờ phản hồi.'
     );
   };
 
@@ -178,7 +188,7 @@ const StaffTicketsPage = () => {
           <p className="admin-badge">Ticket hỗ trợ</p>
           <h1 className="text-2xl font-semibold text-[var(--admin-text)] sm:text-3xl">Xử lý CSKH nội bộ theo ticket</h1>
           <p className="max-w-3xl text-sm text-[var(--admin-muted)]">
-            Tiếp nhận, phản hồi, chuyển cấp trên và đóng ticket theo mức ưu tiên để đảm bảo phản hồi kịp thời.
+            Tiếp nhận, phản hồi, chuyển sang chờ phản hồi và đóng ticket theo mức ưu tiên để đảm bảo phản hồi kịp thời.
           </p>
         </div>
       </section>
@@ -312,19 +322,44 @@ const StaffTicketsPage = () => {
                 placeholder="Nhập phản hồi ticket..."
               />
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" className="admin-action-button success" disabled={isBusy} onClick={handleReceive}>
+                <button
+                  type="button"
+                  className="admin-action-button success"
+                  disabled={isBusy || selectedTicket.status !== 'new'}
+                  onClick={handleReceive}
+                >
                   Nhận ticket
                 </button>
-                <button type="button" className="admin-inline-button" disabled={isBusy || !replyDraft.trim()} onClick={handleReply}>
+                <button
+                  type="button"
+                  className="admin-inline-button"
+                  disabled={isBusy || !replyDraft.trim() || !canReplyToTicket(selectedTicket.status)}
+                  onClick={handleReply}
+                >
                   Phản hồi
                 </button>
-                <button type="button" className="admin-inline-button" disabled={isBusy} onClick={handleEscalate}>
-                  Chuyển cấp trên
+                <button
+                  type="button"
+                  className="admin-inline-button"
+                  disabled={isBusy || !canMoveTicketToWaiting(selectedTicket.status)}
+                  onClick={handleEscalate}
+                >
+                  Chuyển chờ phản hồi
                 </button>
-                <button type="button" className="admin-inline-button" disabled={isBusy} onClick={handleResolve}>
+                <button
+                  type="button"
+                  className="admin-inline-button"
+                  disabled={isBusy || !canResolveTicket(selectedTicket.status)}
+                  onClick={handleResolve}
+                >
                   Đã giải quyết
                 </button>
-                <button type="button" className="admin-action-button danger" disabled={isBusy} onClick={handleClose}>
+                <button
+                  type="button"
+                  className="admin-action-button danger"
+                  disabled={isBusy || !canCloseTicket(selectedTicket.status)}
+                  onClick={handleClose}
+                >
                   Đóng ticket
                 </button>
               </div>

@@ -1,25 +1,35 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import StaffSidebar from './StaffSidebar';
 import StaffTopbar from './StaffTopbar';
 import { financeApi, storeApi } from '../../services/api.ts';
-import type { OrderSummary } from '../../types/store';
+import type { OrderSummary, ReturnRequest, SupportTicket } from '../../types/store';
 import type { StaffOverviewSignal } from '../../constants/staffNav';
+import {
+  countNewReturnRequests,
+  countOpenReturnRequests,
+  countOpenSupportTickets,
+  getStaffOverview,
+  getStaffReturnSeenStorageKey
+} from '../../utils/staffOverview.ts';
 
 const emptyOverview: StaffOverviewSignal = {
   pendingOrders: 0,
   packingOrders: 0,
   handoverOrders: 0,
   openTickets: 0,
-  openReturns: 0
+  openReturns: 0,
+  newReturns: 0
 };
 
 const StaffLayout = () => {
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 1024 : false
   );
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [returnSeenAt, setReturnSeenAt] = useState(() => new Date().toISOString());
 
   const { data: profile } = useQuery({
     queryKey: ['profile'],
@@ -31,6 +41,7 @@ const StaffLayout = () => {
   const role = rawRole === 'styles' ? 'warehouse' : rawRole;
   const isAdmin = role === 'admin';
   const staffId = profile?.id != null ? Number(profile.id) : null;
+  const returnSeenStorageKey = staffId != null ? getStaffReturnSeenStorageKey(staffId) : null;
 
   const { data: orders = [] } = useQuery<OrderSummary[]>({
     queryKey: ['staff-layout-orders', role, staffId],
@@ -39,31 +50,27 @@ const StaffLayout = () => {
     refetchInterval: 45_000
   });
 
-  const overview = useMemo<StaffOverviewSignal>(() => {
-    const pendingOrders = orders.filter((order) =>
-      ['pending', 'processing', 'confirmed'].includes(order.status.toLowerCase())
-    ).length;
-    const packingOrders = orders.filter((order) => order.status.toLowerCase() === 'packing').length;
-    const handoverOrders = orders.filter((order) => order.status.toLowerCase() === 'packing').length;
-    const openReturns = orders.filter(
-      (order) => order.status.toLowerCase() === 'cancelled' || order.paymentStatus.toLowerCase() === 'refunded'
-    ).length;
-    const openTickets = orders.filter((order) => {
-      const status = order.status.toLowerCase();
-      const payment = order.paymentStatus.toLowerCase();
-      if (status === 'cancelled' || payment === 'refunded') return true;
-      const ageHours = (Date.now() - new Date(order.createdAt).getTime()) / (1000 * 60 * 60);
-      return (status === 'pending' || status === 'processing') && ageHours >= 24;
-    }).length;
+  const { data: tickets = [] } = useQuery<SupportTicket[]>({
+    queryKey: ['staff-support-tickets'],
+    queryFn: () => storeApi.supportTickets(),
+    enabled: isAdmin || staffId != null,
+    refetchInterval: 45_000
+  });
 
-    return {
-      pendingOrders,
-      packingOrders,
-      handoverOrders,
-      openTickets,
-      openReturns
-    };
-  }, [orders]);
+  const { data: returnRequests = [] } = useQuery<ReturnRequest[]>({
+    queryKey: ['staff-return-requests'],
+    queryFn: () => storeApi.returnRequests(),
+    enabled: isAdmin || staffId != null,
+    refetchInterval: 15_000
+  });
+
+  const overview = useMemo<StaffOverviewSignal>(() => {
+    return getStaffOverview(orders, {
+      openTickets: countOpenSupportTickets(tickets),
+      openReturns: countOpenReturnRequests(returnRequests),
+      newReturns: countNewReturnRequests(returnRequests, returnSeenAt)
+    });
+  }, [orders, returnRequests, returnSeenAt, tickets]);
 
   const fullName = profile?.fullName?.trim() || 'Nhân viên vận hành';
   const avatarLabel = fullName.charAt(0).toUpperCase() || 'S';
@@ -76,6 +83,36 @@ const StaffLayout = () => {
       document.body.classList.remove('staff-body');
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !returnSeenStorageKey) {
+      return;
+    }
+
+    const stored = window.localStorage.getItem(returnSeenStorageKey);
+    const safeSeenAt =
+      stored && !Number.isNaN(Date.parse(stored))
+        ? stored
+        : new Date().toISOString();
+
+    if (!stored) {
+      window.localStorage.setItem(returnSeenStorageKey, safeSeenAt);
+    }
+    setReturnSeenAt(safeSeenAt);
+  }, [returnSeenStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !returnSeenStorageKey) {
+      return;
+    }
+    if (!location.pathname.startsWith('/staff/returns')) {
+      return;
+    }
+
+    const nextSeenAt = new Date().toISOString();
+    window.localStorage.setItem(returnSeenStorageKey, nextSeenAt);
+    setReturnSeenAt(nextSeenAt);
+  }, [location.pathname, returnSeenStorageKey]);
 
   useEffect(() => {
     const onResize = () => {

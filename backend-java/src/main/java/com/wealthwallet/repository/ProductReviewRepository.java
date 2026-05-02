@@ -10,5 +10,7 @@ import java.util.List;
 public interface ProductReviewRepository extends JpaRepository<ProductReview, Long> {
     List<ProductReview> findByProductOrderByCreatedAtDesc(Product product);
 
+    List<ProductReview> findByProductSellerIdOrderByCreatedAtDesc(Long sellerId);
+
     boolean existsByUserAndOrderItemId(UserAccount user, Long orderItemId);
 }

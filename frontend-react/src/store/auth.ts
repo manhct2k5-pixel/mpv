@@ -22,7 +22,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       token: null,
       isAuthenticated: false,
@@ -53,7 +53,4 @@ export const useAuthStore = create<AuthState>()(
 const token = localStorage.getItem('token');
 if (token) {
   axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-  console.log('Token loaded from localStorage on app init');
-} else {
-  console.log('No token found in localStorage on app init');
 }

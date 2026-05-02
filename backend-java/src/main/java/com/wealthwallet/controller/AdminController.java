@@ -3,6 +3,7 @@ package com.wealthwallet.controller;
 import com.wealthwallet.domain.entity.Category;
 import com.wealthwallet.domain.entity.Gender;
 import com.wealthwallet.domain.entity.Order;
+import com.wealthwallet.domain.entity.Product;
 import com.wealthwallet.domain.entity.UserAccount;
 import com.wealthwallet.dto.AdminCategoryResponse;
 import com.wealthwallet.dto.AdminCategoryUpsertRequest;
@@ -28,7 +29,6 @@ import com.wealthwallet.service.UserService;
 import com.wealthwallet.utils.SlugUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,10 +41,14 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -67,6 +71,7 @@ public class AdminController {
     @GetMapping("/overview")
     public AdminOverviewResponse overview() {
         List<Order> orders = orderRepository.findAll();
+        orderService.synchronizeAutoStatuses(orders);
         long totalStaff = userAccountRepository.countByRole(UserAccount.Role.WAREHOUSE)
                 + userAccountRepository.countByRole(UserAccount.Role.STYLES);
         double grossMerchandiseValue = orders.stream()
@@ -84,6 +89,9 @@ public class AdminController {
         long unpaidOrders = orders.stream()
                 .filter(order -> order.getPaymentStatus() == Order.PaymentStatus.UNPAID)
                 .count();
+        long flaggedTransactions = orders.stream()
+                .filter(this::isFlaggedOrder)
+                .count();
 
         return new AdminOverviewResponse(
                 userAccountRepository.count(),
@@ -97,7 +105,7 @@ public class AdminController {
                 orders.size(),
                 openOrders,
                 unpaidOrders,
-                0,
+                flaggedTransactions,
                 grossMerchandiseValue,
                 paidRevenue
         );
@@ -105,8 +113,53 @@ public class AdminController {
 
     @GetMapping("/users")
     public List<AdminUserInsightResponse> users() {
-        return userAccountRepository.findAllByOrderByCreatedAtDesc().stream()
-                .map(this::mapUser)
+        List<UserAccount> users = userAccountRepository.findAllByOrderByCreatedAtDesc();
+        List<Order> orders = orderRepository.findAllWithUserAndItemsOrderByCreatedAtDesc();
+        orderService.synchronizeAutoStatuses(orders);
+
+        Map<Long, Product> productById = new HashMap<>();
+        Set<Long> productIds = orders.stream()
+                .flatMap(order -> order.getItems().stream())
+                .map(item -> item.getProductId())
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        if (!productIds.isEmpty()) {
+            productRepository.findAllById(productIds).forEach(product -> productById.put(product.getId(), product));
+        }
+
+        Map<Long, Long> customerTransactions = new HashMap<>();
+        Map<Long, Long> sellerTransactions = new HashMap<>();
+        Map<Long, Long> sellerFlaggedTransactions = new HashMap<>();
+
+        for (Order order : orders) {
+            if (order.getUser() != null && order.getUser().getId() != null) {
+                customerTransactions.merge(order.getUser().getId(), 1L, Long::sum);
+            }
+
+            Set<Long> sellerIdsInOrder = new HashSet<>();
+            order.getItems().forEach(item -> {
+                Long productId = item.getProductId();
+                if (productId == null) {
+                    return;
+                }
+                Product product = productById.get(productId);
+                if (product == null || product.getSeller() == null || product.getSeller().getId() == null) {
+                    return;
+                }
+                sellerIdsInOrder.add(product.getSeller().getId());
+            });
+
+            boolean flaggedOrder = isFlaggedOrder(order);
+            sellerIdsInOrder.forEach(sellerId -> {
+                sellerTransactions.merge(sellerId, 1L, Long::sum);
+                if (flaggedOrder) {
+                    sellerFlaggedTransactions.merge(sellerId, 1L, Long::sum);
+                }
+            });
+        }
+
+        return users.stream()
+                .map(user -> mapUser(user, customerTransactions, sellerTransactions, sellerFlaggedTransactions))
                 .toList();
     }
 
@@ -161,7 +214,14 @@ public class AdminController {
                         user.getFullName(),
                         user.getEmail(),
                         user.getRole().name(),
-                        user.getBusinessRequestedAt()
+                        user.getBusinessRequestedAt(),
+                        user.getStoreName(),
+                        user.getStorePhone(),
+                        user.getStoreAddress(),
+                        user.getStoreDescription(),
+                        user.getStoreLogoUrl(),
+                        user.getAvatarUrl(),
+                        user.getCreatedAt()
                 ))
                 .toList();
     }
@@ -203,7 +263,9 @@ public class AdminController {
         Order.Status statusFilter = parseOrderStatus(status);
         Order.PaymentStatus paymentStatusFilter = parsePaymentStatus(paymentStatus);
 
-        return orderRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt")).stream()
+        List<Order> orders = orderRepository.findAllWithUserAndItemsOrderByCreatedAtDesc();
+        orderService.synchronizeAutoStatuses(orders);
+        return orders.stream()
                 .filter(order -> statusFilter == null || order.getStatus() == statusFilter)
                 .filter(order -> paymentStatusFilter == null || order.getPaymentStatus() == paymentStatusFilter)
                 .map(this::mapOrderSummary)
@@ -255,7 +317,9 @@ public class AdminController {
         LocalDate endDate = LocalDate.now();
         LocalDate startDate = endDate.minusDays(reportDays - 1L);
 
-        Map<LocalDate, List<Order>> grouped = orderRepository.findAll().stream()
+        List<Order> orders = orderRepository.findAll();
+        orderService.synchronizeAutoStatuses(orders);
+        Map<LocalDate, List<Order>> grouped = orders.stream()
                 .filter(order -> order.getCreatedAt() != null)
                 .filter(order -> {
                     LocalDate date = order.getCreatedAt().toLocalDate();
@@ -405,6 +469,24 @@ public class AdminController {
     }
 
     private AdminUserInsightResponse mapUser(UserAccount user) {
+        return mapUser(user, Map.of(), Map.of(), Map.of());
+    }
+
+    private AdminUserInsightResponse mapUser(
+            UserAccount user,
+            Map<Long, Long> customerTransactions,
+            Map<Long, Long> sellerTransactions,
+            Map<Long, Long> sellerFlaggedTransactions
+    ) {
+        long totalTransactions = switch (user.getRole()) {
+            case SELLER -> sellerTransactions.getOrDefault(user.getId(), 0L);
+            case USER -> customerTransactions.getOrDefault(user.getId(), 0L);
+            default -> 0L;
+        };
+        long flagged = user.getRole() == UserAccount.Role.SELLER
+                ? sellerFlaggedTransactions.getOrDefault(user.getId(), 0L)
+                : 0L;
+
         return new AdminUserInsightResponse(
                 user.getId(),
                 user.getEmail(),
@@ -413,10 +495,25 @@ public class AdminController {
                 Boolean.TRUE.equals(user.getBusinessRequestPending()),
                 user.getBusinessRequestedAt(),
                 user.getCreatedAt(),
-                0,
-                0,
-                0
+                totalTransactions,
+                flagged,
+                user.getMonthlyIncome() != null && user.getMonthlyIncome() > 0 ? 1 : 0
         );
+    }
+
+    private boolean isFlaggedOrder(Order order) {
+        if (order == null) {
+            return false;
+        }
+        if (order.getStatus() == Order.Status.CANCELLED || order.getPaymentStatus() == Order.PaymentStatus.REFUNDED) {
+            return true;
+        }
+        if (order.getPaymentMethod() == Order.PaymentMethod.BANK_TRANSFER
+                && order.getPaymentStatus() == Order.PaymentStatus.UNPAID
+                && order.getCreatedAt() != null) {
+            return order.getCreatedAt().isBefore(LocalDateTime.now().minusDays(2));
+        }
+        return false;
     }
 
     private OrderSummaryResponse mapOrderSummary(Order order) {
@@ -480,8 +577,8 @@ public class AdminController {
 
     private int normalizeReportDays(Integer rawDays) {
         int value = rawDays == null ? 7 : rawDays;
-        if (value < 1 || value > 60) {
-            throw new ResponseStatusException(BAD_REQUEST, "Số ngày báo cáo phải từ 1 đến 60");
+        if (value < 1 || value > 90) {
+            throw new ResponseStatusException(BAD_REQUEST, "Số ngày báo cáo phải từ 1 đến 90");
         }
         return value;
     }

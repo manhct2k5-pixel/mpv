@@ -125,11 +125,11 @@ const SellerWorkspacePage = () => {
       tone: 'blue'
     });
 
-    if (isAdmin || isStaff) {
+    if (isAdmin) {
       cards.push({
         title: 'Tạo đơn thủ công',
         description: 'Lên đơn nhanh cho khách lẻ hoặc đơn hỗ trợ từ CSKH.',
-        to: '/seller/tao-don',
+        to: '/admin/manual-order',
         icon: ClipboardPlus,
         tone: 'blue'
       });

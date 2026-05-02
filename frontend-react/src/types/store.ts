@@ -9,6 +9,10 @@ export interface StoreCategory {
   imageUrl?: string;
 }
 
+export interface StorePolicy {
+  maxRefundDays: number;
+}
+
 export interface StoreProductSummary {
   id: number;
   name: string;
@@ -21,6 +25,7 @@ export interface StoreProductSummary {
   featured?: boolean;
   averageRating?: number;
   reviewCount?: number;
+  totalStockQty?: number | null;
 }
 
 export interface StoreProductVariant {
@@ -55,6 +60,7 @@ export interface CartItem {
   unitPrice: number;
   quantity: number;
   lineTotal: number;
+  stockQty?: number | null;
 }
 
 export interface Cart {
@@ -127,6 +133,54 @@ export interface Order {
   shippingAddress?: ShippingAddress | null;
 }
 
+export interface StaffQcState {
+  checkQuantity: boolean;
+  checkModel: boolean;
+  checkVisual: boolean;
+  checkAccessories: boolean;
+  issueNote: string;
+  packageType: string;
+  weight: string;
+  dimensions: string;
+  packageNote: string;
+  status: 'pending' | 'passed' | 'failed' | 'packing' | 'packed';
+}
+
+export interface StaffShippingDraft {
+  carrier: string;
+  service: string;
+  fee: string;
+  eta: string;
+}
+
+export interface StaffWaybillState extends StaffShippingDraft {
+  code: string;
+  createdAt: string;
+  connected: boolean;
+}
+
+export interface StaffTimelineLog {
+  at: string;
+  actor: string;
+  action: string;
+  note: string;
+  attachment?: string;
+  kind?: 'status' | 'internal' | 'notify_customer' | 'notify_seller';
+}
+
+export interface StaffOrderWorkState {
+  orderId: number;
+  assigneeName?: string | null;
+  postponed: boolean;
+  internalNote?: string | null;
+  qc: StaffQcState;
+  shippingDraft: StaffShippingDraft;
+  waybill?: StaffWaybillState | null;
+  timelineLogs: StaffTimelineLog[];
+  updatedBy?: string | null;
+  updatedAt?: string | null;
+}
+
 export interface StoreSellerSummary {
   id: number;
   fullName: string;
@@ -192,6 +246,30 @@ export interface SellerProfile {
   storePhone?: string | null;
   storeAddress?: string | null;
   storeLogoUrl?: string | null;
+  sellerBankName?: string | null;
+  sellerBankAccountName?: string | null;
+  sellerBankAccountNumber?: string | null;
+  sellerOrderNotificationsEnabled?: boolean;
+  sellerMarketingNotificationsEnabled?: boolean;
+  sellerOperationAlertsEnabled?: boolean;
+}
+
+export interface SellerReview {
+  id: number;
+  orderId?: number | null;
+  orderItemId?: number | null;
+  productId?: number | null;
+  productSlug?: string | null;
+  productName?: string | null;
+  customerId?: number | null;
+  customerName?: string | null;
+  rating: number;
+  comment?: string | null;
+  note?: string | null;
+  replied: boolean;
+  flagged: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type SupportTicketStatus = 'new' | 'processing' | 'waiting' | 'resolved' | 'closed';

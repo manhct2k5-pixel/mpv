@@ -44,14 +44,14 @@ public class StoreOrderController {
     @GetMapping("/cart")
     public CartResponse cart() {
         UserAccount user = userService.getCurrentUser();
-        userService.ensureCustomer(user);
+        userService.ensureStoreBuyer(user);
         return cartService.getCart(user);
     }
 
     @PostMapping("/cart/items")
     public CartResponse addCartItem(@Valid @RequestBody CartItemRequest request) {
         UserAccount user = userService.getCurrentUser();
-        userService.ensureCustomer(user);
+        userService.ensureStoreBuyer(user);
         return cartService.addItem(user, request);
     }
 
@@ -61,49 +61,49 @@ public class StoreOrderController {
             @Valid @RequestBody CartItemUpdateRequest request
     ) {
         UserAccount user = userService.getCurrentUser();
-        userService.ensureCustomer(user);
+        userService.ensureStoreBuyer(user);
         return cartService.updateItem(user, id, request);
     }
 
     @DeleteMapping("/cart/items/{id}")
     public CartResponse removeCartItem(@PathVariable(name = "id") Long id) {
         UserAccount user = userService.getCurrentUser();
-        userService.ensureCustomer(user);
+        userService.ensureStoreBuyer(user);
         return cartService.removeItem(user, id);
     }
 
     @PostMapping("/cart/clear")
     public CartResponse clearCart() {
         UserAccount user = userService.getCurrentUser();
-        userService.ensureCustomer(user);
+        userService.ensureStoreBuyer(user);
         return cartService.clear(user);
     }
 
     @PostMapping("/cart/voucher/apply")
     public CartResponse applyVoucher(@Valid @RequestBody VoucherApplyRequest request) {
         UserAccount user = userService.getCurrentUser();
-        userService.ensureCustomer(user);
+        userService.ensureStoreBuyer(user);
         return cartService.applyVoucher(user, request.code());
     }
 
     @DeleteMapping("/cart/voucher")
     public CartResponse removeVoucher() {
         UserAccount user = userService.getCurrentUser();
-        userService.ensureCustomer(user);
+        userService.ensureStoreBuyer(user);
         return cartService.removeVoucher(user);
     }
 
     @GetMapping("/vouchers/validate")
     public VoucherValidationResponse validateVoucher(@RequestParam(name = "code") String code) {
         UserAccount user = userService.getCurrentUser();
-        userService.ensureCustomer(user);
+        userService.ensureStoreBuyer(user);
         return voucherService.validateForPreview(code);
     }
 
     @PostMapping("/orders")
     public OrderResponse createOrder(@Valid @RequestBody OrderCreateRequest request) {
         UserAccount user = userService.getCurrentUser();
-        userService.ensureCustomer(user);
+        userService.ensureStoreBuyer(user);
         return orderService.createOrder(user, request);
     }
 
@@ -116,7 +116,7 @@ public class StoreOrderController {
     @GetMapping("/orders")
     public List<OrderSummaryResponse> orders() {
         UserAccount user = userService.getCurrentUser();
-        userService.ensureCustomer(user);
+        userService.ensureStoreBuyer(user);
         return orderService.listOrders(user);
     }
 

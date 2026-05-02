@@ -64,6 +64,9 @@ public class ReturnRequestService {
         Order order = orderRepository.findById(request.orderId())
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Order not found"));
         ensureCanReferenceOrder(actor, order);
+        if (returnRequestRepository.existsByOrder(order)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Đơn hàng này đã có yêu cầu đổi trả");
+        }
         enforceCustomerReturnPolicy(actor, order);
 
         ReturnRequest saved = returnRequestRepository.save(
@@ -185,12 +188,16 @@ public class ReturnRequestService {
         }
 
         if (actor.getRole() == UserAccount.Role.SELLER) {
-            Set<ReturnRequest> merged = new LinkedHashSet<>(returnRequestRepository.findByCreatedByOrderByCreatedAtDesc(actor));
+            Set<ReturnRequest> merged = new LinkedHashSet<>(returnRequestRepository.findByCreatedByOrderByCreatedAtDesc(actor).stream()
+                    .filter(request -> canSellerAccessRequest(actor, request))
+                    .toList());
             List<Long> productIds = productRepository.findBySellerIdOrderByCreatedAtDesc(actor.getId()).stream()
                     .map(Product::getId)
                     .toList();
             if (!productIds.isEmpty()) {
-                merged.addAll(returnRequestRepository.findBySellerProductIds(productIds));
+                merged.addAll(returnRequestRepository.findBySellerProductIds(productIds).stream()
+                        .filter(request -> canSellerAccessRequest(actor, request))
+                        .toList());
             }
             return new ArrayList<>(merged);
         }
@@ -232,12 +239,15 @@ public class ReturnRequestService {
         boolean valid = switch (current) {
             case PENDING_VERIFICATION -> next == ReturnRequest.Status.APPROVED
                     || next == ReturnRequest.Status.REJECTED
-                    || next == ReturnRequest.Status.PENDING_ADMIN;
+                    || next == ReturnRequest.Status.PENDING_ADMIN
+                    || next == ReturnRequest.Status.REFUNDED;
             case PENDING_ADMIN -> next == ReturnRequest.Status.APPROVED
-                    || next == ReturnRequest.Status.REJECTED;
+                    || next == ReturnRequest.Status.REJECTED
+                    || next == ReturnRequest.Status.REFUNDED;
             case APPROVED -> next == ReturnRequest.Status.COLLECTING
                     || next == ReturnRequest.Status.REJECTED
-                    || next == ReturnRequest.Status.PENDING_ADMIN;
+                    || next == ReturnRequest.Status.PENDING_ADMIN
+                    || next == ReturnRequest.Status.REFUNDED;
             case COLLECTING -> next == ReturnRequest.Status.RECEIVED;
             case RECEIVED -> next == ReturnRequest.Status.REFUNDED;
             case REFUNDED, REJECTED -> false;
@@ -273,7 +283,15 @@ public class ReturnRequestService {
                 .map(Product::getId)
                 .collect(Collectors.toSet());
         return order.getItems().stream()
-                .anyMatch(item -> item.getProductId() != null && sellerProductIds.contains(item.getProductId()));
+                .allMatch(item -> item.getProductId() != null && sellerProductIds.contains(item.getProductId()));
+    }
+
+    private boolean canSellerAccessRequest(UserAccount actor, ReturnRequest request) {
+        Order order = request.getOrder();
+        if (order == null) {
+            return isCreator(actor, request);
+        }
+        return isOrderManagedBySeller(actor, order);
     }
 
     private boolean isSupportRole(UserAccount.Role role) {

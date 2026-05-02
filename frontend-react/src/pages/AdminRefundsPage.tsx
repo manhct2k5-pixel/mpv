@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, ShieldAlert, XCircle } from 'lucide-react';
 import { financeApi } from '../services/api.ts';
+import { ADMIN_DEMO_MODE, getAdminDemoRefundDecision, rejectAdminDemoRefund } from '../services/adminDemo.ts';
 import type { OrderSummary } from '../types/store';
 
 type RefundViewStatus = 'all' | 'pending' | 'refunded' | 'rejected';
@@ -40,22 +41,35 @@ const AdminRefundsPage = () => {
   });
 
   const requestRows = useMemo(() => {
-    return orders.map((order) => {
-      const paymentStatus = order.paymentStatus.toLowerCase();
-      const viewStatus = rejectedOrderIds.includes(order.id)
-        ? 'rejected'
-        : paymentStatus === 'refunded'
-          ? 'refunded'
-          : paymentStatus === 'paid'
-            ? 'pending'
-            : 'pending';
-      return {
-        requestCode: `RF-${order.id}`,
-        order,
-        amount: order.total ?? 0,
-        viewStatus
-      };
-    });
+    return orders
+      .map((order) => {
+        const paymentStatus = order.paymentStatus.toLowerCase();
+        const refundDecision = ADMIN_DEMO_MODE
+          ? getAdminDemoRefundDecision(order.id)
+          : rejectedOrderIds.includes(order.id)
+            ? 'rejected'
+            : null;
+        const viewStatus =
+          refundDecision === 'rejected'
+            ? 'rejected'
+            : paymentStatus === 'refunded' || refundDecision === 'refunded'
+              ? 'refunded'
+              : paymentStatus === 'paid'
+                ? 'pending'
+                : null;
+
+        if (!viewStatus) {
+          return null;
+        }
+
+        return {
+          requestCode: `RF-${order.id}`,
+          order,
+          amount: order.total ?? 0,
+          viewStatus
+        };
+      })
+      .filter((row): row is { requestCode: string; order: OrderSummary; amount: number; viewStatus: RefundViewStatus } => row != null);
   }, [orders, rejectedOrderIds]);
 
   const visibleRows = useMemo(() => {
@@ -68,9 +82,15 @@ const AdminRefundsPage = () => {
   );
 
   const handleReject = (orderId: number) => {
-    if (!rejectedOrderIds.includes(orderId)) {
+    if (ADMIN_DEMO_MODE) {
+      rejectAdminDemoRefund(orderId);
+      queryClient.invalidateQueries({ queryKey: ['admin', 'orders'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'overview'] });
+    } else if (!rejectedOrderIds.includes(orderId)) {
       setRejectedOrderIds((prev) => [...prev, orderId]);
     }
+    setReason('');
+    setSelectedOrderId(null);
     setStatusMessage(`Đã từ chối yêu cầu hoàn tiền cho đơn #${orderId}.`);
   };
 
@@ -81,7 +101,9 @@ const AdminRefundsPage = () => {
           <p className="admin-badge">Hoàn tiền / xử lý đặc biệt</p>
           <h1 className="text-2xl font-semibold text-[var(--admin-text)] sm:text-3xl">Duyệt yêu cầu hoàn tiền và ngoại lệ</h1>
           <p className="max-w-3xl text-sm text-[var(--admin-muted)]">
-            Tiếp nhận, xác minh, duyệt hoặc từ chối yêu cầu hoàn tiền. Theo dõi người xử lý và ghi chú quyết định.
+            {ADMIN_DEMO_MODE
+              ? 'Demo mode: hàng đợi hoàn tiền được mô phỏng từ các đơn đã thanh toán hoặc đã hoàn, và mọi quyết định chỉ lưu trên trình duyệt này.'
+              : 'Tiếp nhận, xác minh, duyệt hoặc từ chối yêu cầu hoàn tiền. Theo dõi người xử lý và ghi chú quyết định.'}
           </p>
         </div>
       </section>

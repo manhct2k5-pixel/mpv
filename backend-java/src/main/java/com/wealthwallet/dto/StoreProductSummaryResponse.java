@@ -11,6 +11,7 @@ public record StoreProductSummaryResponse(
         String imageUrl,
         Boolean featured,
         Double averageRating,
-        Integer reviewCount
+        Integer reviewCount,
+        Integer totalStockQty
 ) {
 }

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { financeApi, storeApi } from '../services/api.ts';
-import type { Order, OrderSummary } from '../types/store';
+import { financeApi, staffApi, storeApi } from '../services/api.ts';
+import type { Order, OrderSummary, StaffOrderWorkState } from '../types/store';
 import {
   getTargetStatusForPackingFlow,
   normalizeOrderStatus,
@@ -46,8 +46,6 @@ const StaffOrderProcessingPage = () => {
   const [sellerFilter, setSellerFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState<'all' | PriorityLevel>('all');
-  const [assignedOrders, setAssignedOrders] = useState<Record<number, string>>({});
-  const [postponedOrders, setPostponedOrders] = useState<Record<number, boolean>>({});
   const [internalNotes, setInternalNotes] = useState<Record<number, string>>({});
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(focusId || null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -67,14 +65,55 @@ const StaffOrderProcessingPage = () => {
   const { data: orders = [], isLoading, isError } = useQuery<OrderSummary[]>({
     queryKey: ['staff-orders-processing', role, staffId],
     queryFn: () => (isAdmin ? financeApi.admin.orders() : storeApi.sellerOrders(staffId as number)),
-    enabled: isAdmin || staffId != null
+    enabled: isAdmin || staffId != null,
+    refetchInterval: 5_000
   });
+
+  const { data: workStates = [] } = useQuery({
+    queryKey: ['staff-work-states'],
+    queryFn: staffApi.orderWorkStates,
+    enabled: isAdmin || staffId != null,
+    refetchInterval: 5_000
+  });
+
+  const workStateByOrderId = useMemo(
+    () => new Map(workStates.map((state) => [state.orderId, state])),
+    [workStates]
+  );
+
+  const assignedOrders = useMemo(() => {
+    const next: Record<number, string> = {};
+    workStates.forEach((state) => {
+      if (state.assigneeName) next[state.orderId] = state.assigneeName;
+    });
+    return next;
+  }, [workStates]);
+
+  const postponedOrders = useMemo(() => {
+    const next: Record<number, boolean> = {};
+    workStates.forEach((state) => {
+      if (state.postponed) next[state.orderId] = true;
+    });
+    return next;
+  }, [workStates]);
 
   const { data: selectedOrderDetail } = useQuery<Order>({
     queryKey: ['staff-order-detail', selectedOrderId],
     queryFn: () => storeApi.order(selectedOrderId as number),
     enabled: selectedOrderId != null
   });
+
+  useEffect(() => {
+    setInternalNotes((prev) => {
+      const next = { ...prev };
+      workStates.forEach((state) => {
+        if (state.internalNote != null && next[state.orderId] == null) {
+          next[state.orderId] = state.internalNote;
+        }
+      });
+      return next;
+    });
+  }, [workStates]);
 
   const updateStatusMutation = useMutation({
     mutationFn: (payload: { id: number; status: string }) => storeApi.updateOrderStatus(payload.id, payload.status),
@@ -84,6 +123,27 @@ const StaffOrderProcessingPage = () => {
     },
     onError: (error: any) => {
       setStatusMessage(error.response?.data?.message || error.response?.data?.error || 'Không cập nhật được trạng thái đơn.');
+    }
+  });
+
+  const updateWorkStateMutation = useMutation({
+    mutationFn: (payload: {
+      orderId: number;
+      assigneeName?: string | null;
+      postponed?: boolean;
+      internalNote?: string | null;
+    }) => staffApi.updateOrderWorkState(payload.orderId, payload),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<StaffOrderWorkState[]>(['staff-work-states'], (current = []) => {
+        const exists = current.some((state) => state.orderId === updated.orderId);
+        return exists
+          ? current.map((state) => (state.orderId === updated.orderId ? updated : state))
+          : [...current, updated];
+      });
+      queryClient.invalidateQueries({ queryKey: ['staff-work-states'] });
+    },
+    onError: (error: any) => {
+      setStatusMessage(error.response?.data?.message || error.response?.data?.error || 'Không lưu được workflow staff.');
     }
   });
 
@@ -112,12 +172,13 @@ const StaffOrderProcessingPage = () => {
   );
 
   const handleAssign = (order: OrderSummary) => {
-    setAssignedOrders((prev) => ({ ...prev, [order.id]: assigneeName }));
-    setPostponedOrders((prev) => ({ ...prev, [order.id]: false }));
+    updateWorkStateMutation.mutate({ orderId: order.id, assigneeName, postponed: false });
     const normalizedStatus = normalizeOrderStatus(order.status);
     if (isAdmin && normalizedStatus === 'pending') {
       updateStatusMutation.mutate({ id: order.id, status: 'processing' });
-      setStatusMessage(`Đã nhận đơn ${order.orderNumber} và cập nhật trạng thái "Đang xử lý nội bộ".`);
+      setStatusMessage(
+        `Đã nhận đơn ${order.orderNumber} và cập nhật trạng thái "Đang xử lý nội bộ". Tiếp tục chuyển trạng thái theo quy trình vận hành.`
+      );
     } else {
       setStatusMessage(`Đã nhận đơn ${order.orderNumber} cho ca trực hiện tại.`);
     }
@@ -144,7 +205,7 @@ const StaffOrderProcessingPage = () => {
   };
 
   const handlePostpone = (order: OrderSummary) => {
-    setPostponedOrders((prev) => ({ ...prev, [order.id]: true }));
+    updateWorkStateMutation.mutate({ orderId: order.id, postponed: true });
     setStatusMessage(`Đã tạm hoãn đơn ${order.orderNumber}.`);
   };
 
@@ -360,12 +421,18 @@ const StaffOrderProcessingPage = () => {
             <article className="rounded-xl border border-[var(--admin-border)] bg-[var(--admin-surface-2)] p-4 lg:col-span-2">
               <p className="text-sm font-semibold text-[var(--admin-text)]">Ghi chú nội bộ</p>
               <textarea
-                value={internalNotes[selectedOrder.id] ?? ''}
+                value={internalNotes[selectedOrder.id] ?? workStateByOrderId.get(selectedOrder.id)?.internalNote ?? ''}
                 onChange={(event) =>
                   setInternalNotes((prev) => ({
                     ...prev,
                     [selectedOrder.id]: event.target.value
                   }))
+                }
+                onBlur={(event) =>
+                  updateWorkStateMutation.mutate({
+                    orderId: selectedOrder.id,
+                    internalNote: event.target.value
+                  })
                 }
                 className="admin-input mt-2 h-24 resize-y py-2"
                 placeholder="Ghi chú cho bước xử lý tiếp theo..."

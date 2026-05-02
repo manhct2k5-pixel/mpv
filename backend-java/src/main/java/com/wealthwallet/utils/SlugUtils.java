@@ -10,7 +10,8 @@ public final class SlugUtils {
         if (input == null) {
             return "";
         }
-        String normalized = Normalizer.normalize(input.trim().toLowerCase(), Normalizer.Form.NFD);
+        String normalized = input.trim().toLowerCase().replace('đ', 'd');
+        normalized = Normalizer.normalize(normalized, Normalizer.Form.NFD);
         String slug = normalized.replaceAll("\\p{M}", "");
         slug = slug.replaceAll("[^a-z0-9]+", "-");
         slug = slug.replaceAll("(^-|-$)", "");

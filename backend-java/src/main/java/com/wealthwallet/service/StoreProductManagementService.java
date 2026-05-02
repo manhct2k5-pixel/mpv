@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 
@@ -56,7 +57,7 @@ public class StoreProductManagementService {
                 .active(true)
                 .category(category)
                 .seller(user)
-                .imageUrls(new ArrayList<>(request.imageUrls() != null ? request.imageUrls() : List.of()))
+                .imageUrls(sanitizeImageUrls(request.imageUrls()))
                 .build();
 
         List<ProductVariant> variants = new ArrayList<>();
@@ -124,7 +125,7 @@ public class StoreProductManagementService {
             product.setActive(request.active());
         }
         if (request.imageUrls() != null) {
-            product.setImageUrls(new ArrayList<>(request.imageUrls()));
+            product.setImageUrls(sanitizeImageUrls(request.imageUrls()));
         }
         Product saved = productRepository.save(product);
         return mapDetail(saved);
@@ -266,7 +267,7 @@ public class StoreProductManagementService {
                         variant.getColor(),
                         resolveVariantPrice(product, variant),
                         variant.getStockQty(),
-                        variant.getImageUrl()
+                        trimToNull(variant.getImageUrl())
                 ))
                 .toList();
         return new StoreProductDetailResponse(
@@ -283,7 +284,7 @@ public class StoreProductManagementService {
                 product.getBrand(),
                 product.getMaterial(),
                 product.getFit(),
-                List.copyOf(product.getImageUrls()),
+                List.copyOf(sanitizeImageUrls(product.getImageUrls())),
                 variants
         );
     }
@@ -304,5 +305,17 @@ public class StoreProductManagementService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private ArrayList<String> sanitizeImageUrls(List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            return new ArrayList<>();
+        }
+        LinkedHashSet<String> uniqueUrls = new LinkedHashSet<>();
+        imageUrls.stream()
+                .map(this::trimToNull)
+                .filter(value -> value != null)
+                .forEach(uniqueUrls::add);
+        return new ArrayList<>(uniqueUrls);
     }
 }

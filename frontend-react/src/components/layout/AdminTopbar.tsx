@@ -9,6 +9,7 @@ import {
   PanelLeftOpen,
   Search,
   Settings,
+  Store,
   User
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -59,6 +60,7 @@ const AdminTopbar = ({ collapsed, onToggleCollapsed, onOpenMobileSidebar }: Admi
   });
 
   const quickActions = [
+    { id: 'seller', label: 'Trang seller', to: '/seller' },
     { id: 'orders', label: 'Đơn hàng', to: '/admin/orders' },
     { id: 'reports', label: 'Báo cáo', to: '/admin/reports' },
     { id: 'refunds', label: 'Hoàn tiền', to: '/admin/refunds' }
@@ -73,6 +75,12 @@ const AdminTopbar = ({ collapsed, onToggleCollapsed, onOpenMobileSidebar }: Admi
     }));
 
     const actions: SearchEntry[] = [
+      {
+        id: 'action-seller-home',
+        label: 'Trang chủ seller',
+        description: 'Mở seller workspace để quản lý gian hàng',
+        action: () => navigate('/seller')
+      },
       {
         id: 'action-orders',
         label: 'Giám sát đơn hàng',
@@ -290,6 +298,10 @@ const AdminTopbar = ({ collapsed, onToggleCollapsed, onOpenMobileSidebar }: Admi
 
           {menuOpen ? (
             <div id="admin-user-menu" role="menu" className="admin-user-menu">
+              <Link to="/seller" className="admin-user-menu-item" role="menuitem" onClick={() => setMenuOpen(false)}>
+                <Store className="h-4 w-4" />
+                Trang chủ seller
+              </Link>
               <Link to="/tai-khoan" className="admin-user-menu-item" role="menuitem" onClick={() => setMenuOpen(false)}>
                 <User className="h-4 w-4" />
                 Hồ sơ

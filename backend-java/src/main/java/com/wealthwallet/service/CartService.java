@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -48,6 +49,7 @@ public class CartService {
         validateStock(variant, request.quantity());
 
         Cart cart = getOrCreateCart(user);
+        ensureSingleSellerCart(cart, variant);
         CartItem item = cart.getItems().stream()
                 .filter(existing -> existing.getVariant().getId().equals(variant.getId()))
                 .findFirst()
@@ -139,6 +141,24 @@ public class CartService {
                 .orElseGet(() -> cartRepository.save(Cart.builder().user(user).build()));
     }
 
+    private void ensureSingleSellerCart(Cart cart, ProductVariant candidateVariant) {
+        Long currentSellerId = cart.getItems().stream()
+                .map(CartItem::getVariant)
+                .filter(Objects::nonNull)
+                .map(this::resolveSellerId)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+        Long candidateSellerId = resolveSellerId(candidateVariant);
+        if (currentSellerId == null || candidateSellerId == null || currentSellerId.equals(candidateSellerId)) {
+            return;
+        }
+        throw new ResponseStatusException(
+                BAD_REQUEST,
+                "Giỏ hàng hiện chỉ hỗ trợ sản phẩm từ một shop trong mỗi đơn. Hãy thanh toán hoặc xóa sản phẩm hiện tại trước khi thêm shop khác."
+        );
+    }
+
     private CartItem findCartItem(Cart cart, Long itemId) {
         return cart.getItems().stream()
                 .filter(item -> item.getId().equals(itemId))
@@ -199,7 +219,8 @@ public class CartService {
                 variant.getColor(),
                 unitPrice,
                 item.getQuantity(),
-                lineTotal
+                lineTotal,
+                variant.getStockQty()
         );
     }
 
@@ -216,8 +237,22 @@ public class CartService {
 
     private void validateStock(ProductVariant variant, int desiredQty) {
         if (variant.getStockQty() != null && desiredQty > variant.getStockQty()) {
-            throw new ResponseStatusException(BAD_REQUEST, "Sản phẩm không đủ tồn kho");
+            if (variant.getStockQty() <= 0) {
+                throw new ResponseStatusException(BAD_REQUEST, "Biến thể bạn chọn hiện đã hết hàng");
+            }
+            throw new ResponseStatusException(
+                    BAD_REQUEST,
+                    "Chỉ còn " + variant.getStockQty() + " sản phẩm trong kho"
+            );
         }
+    }
+
+    private Long resolveSellerId(ProductVariant variant) {
+        Product product = variant.getProduct();
+        if (product == null || product.getSeller() == null) {
+            return null;
+        }
+        return product.getSeller().getId();
     }
 
     private double calculateSubtotal(List<CartItem> items) {

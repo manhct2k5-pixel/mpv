@@ -1,10 +1,11 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Heart, LifeBuoy, Search, ShoppingBag, Sparkles, UserRound } from 'lucide-react';
+import { Bell, Heart, LifeBuoy, Package, Search, ShoppingBag, Sparkles, UserRound } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { financeApi, storeApi } from '../../services/api.ts';
 import { useAuthStore } from '../../store/auth.ts';
 import { getRoutePrefetchHandlers } from '../../utils/routePrefetch';
+import { canUseShoppingFlow, normalizeRoleForAccess } from '../../utils/access';
 import { useUIStore } from '../../store/ui.ts';
 import NotificationDrawer from './NotificationDrawer.tsx';
 import type { AppNotification } from '../../types/app.ts';
@@ -33,45 +34,70 @@ const StoreLayout = () => {
     enabled: isAuthenticated,
     retry: 1
   });
-  const rawRole = (profile?.role ?? '').toLowerCase();
-  const normalizedRole = rawRole === 'styles' ? 'warehouse' : rawRole;
+  const normalizedRole = normalizeRoleForAccess(profile?.role);
   const isCustomer = normalizedRole === 'user';
+  const canShop = canUseShoppingFlow(normalizedRole);
   const { data: cart } = useQuery({
     queryKey: ['store-cart'],
     queryFn: storeApi.cart,
-    enabled: isAuthenticated && isCustomer
+    enabled: isAuthenticated && canShop
   });
   const { data: customerOrders = [] } = useQuery({
     queryKey: ['store-orders'],
     queryFn: storeApi.orders,
-    enabled: isAuthenticated && isCustomer
+    enabled: isAuthenticated && canShop,
+    refetchInterval: 15_000
   });
   const { data: customerTickets = [] } = useQuery({
     queryKey: ['customer-support-tickets'],
     queryFn: () => storeApi.supportTickets(),
-    enabled: isAuthenticated && isCustomer
+    enabled: isAuthenticated && isCustomer,
+    refetchInterval: 15_000
   });
   const { data: customerReturns = [] } = useQuery({
     queryKey: ['customer-return-requests'],
     queryFn: () => storeApi.returnRequests(),
-    enabled: isAuthenticated && isCustomer
+    enabled: isAuthenticated && isCustomer,
+    refetchInterval: 15_000
   });
   const isAdmin = normalizedRole === 'admin';
   const isWarehouse = normalizedRole === 'warehouse';
   const isStoreManager = normalizedRole === 'seller';
-  const canManageOrders = isAdmin || isStoreManager || isWarehouse;
+  const hasResolvedProfile = Boolean(profile);
+  const canManageOrders = hasResolvedProfile && (isAdmin || isStoreManager || isWarehouse);
+  const workspaceLinks = useMemo(() => {
+    if (!hasResolvedProfile) {
+      return [];
+    }
+
+    if (isAdmin) {
+      return [
+        { to: '/seller', label: 'Trang seller' },
+        { to: '/admin', label: 'Trang admin' }
+      ];
+    }
+
+    if (isWarehouse) {
+      return [{ to: '/staff', label: 'Trang nhân viên' }];
+    }
+
+    if (isStoreManager) {
+      return [{ to: '/seller', label: 'Trang seller' }];
+    }
+
+    return [];
+  }, [hasResolvedProfile, isAdmin, isStoreManager, isWarehouse]);
   const showCustomerActions = !isAuthenticated || isCustomer;
   const cartCount = cart?.items?.reduce((total, item) => total + item.quantity, 0) ?? 0;
   const homePrefetchHandlers = getRoutePrefetchHandlers('home');
 
   useEffect(() => {
-    if (location.pathname !== '/') return;
     const params = new URLSearchParams(location.search);
     setSearchQuery(params.get('q') ?? '');
-  }, [location.pathname, location.search]);
+  }, [location.search]);
 
   useEffect(() => {
-    if (!isAuthenticated || !isCustomer || !profile?.id) {
+    if (!isAuthenticated || !canShop || !profile?.id) {
       setNotifications([]);
       return;
     }
@@ -138,7 +164,7 @@ const StoreLayout = () => {
         new Date(b.timestamp ?? b.createdAt ?? 0).getTime() - new Date(a.timestamp ?? a.createdAt ?? 0).getTime()
     );
     setNotifications(draft.slice(0, 80));
-  }, [customerOrders, customerReturns, customerTickets, isAuthenticated, isCustomer, profile?.id, setNotifications]);
+  }, [canShop, customerOrders, customerReturns, customerTickets, isAuthenticated, profile?.id, setNotifications]);
 
   const persistCustomerRead = (ids: Array<string | number>) => {
     if (!profile?.id) {
@@ -163,10 +189,13 @@ const StoreLayout = () => {
     event.preventDefault();
     const trimmed = searchQuery.trim();
     if (!trimmed) {
-      navigate('/');
+      navigate('/san-pham');
       return;
     }
-    navigate(`/?q=${encodeURIComponent(trimmed)}`);
+    navigate({
+      pathname: '/san-pham',
+      search: `?q=${encodeURIComponent(trimmed)}`
+    });
   };
 
   return (
@@ -181,12 +210,12 @@ const StoreLayout = () => {
                 </span>
                 <div>
                   <p className="font-display text-xl text-mocha">Mộc Mầm</p>
-                  <p className="text-xs text-cocoa/60">Softwear Studio</p>
+                  <p className="text-xs text-cocoa/60">Software Studio</p>
                 </div>
               </Link>
 
               <form onSubmit={handleSearchSubmit} className="hidden flex-1 justify-center lg:flex">
-                <div className="flex w-full max-w-xl items-center gap-2 rounded-2xl border border-rose-200/80 bg-white/90 px-4 py-2 text-sm text-cocoa/70 shadow-[0_10px_24px_rgba(148,163,184,0.16)]">
+                <div className="flex w-full max-w-[680px] items-center gap-2 rounded-[22px] border border-rose-200/80 bg-white/92 px-4 py-2 text-sm text-cocoa/70 shadow-[0_10px_24px_rgba(148,163,184,0.16)]">
                   <Search className="h-4 w-4 text-rose-400" />
                   <input
                     type="text"
@@ -204,20 +233,33 @@ const StoreLayout = () => {
                 </div>
               </form>
 
-              <div className="hidden items-center gap-2 rounded-2xl border border-rose-200/70 bg-white/90 px-2 py-2 shadow-[0_10px_24px_rgba(148,163,184,0.14)] lg:flex">
+              <div className="hidden items-center gap-1.5 rounded-[22px] border border-rose-200/70 bg-white/92 px-2 py-2 shadow-[0_10px_24px_rgba(148,163,184,0.14)] lg:flex">
                 <Link to={isAuthenticated ? '/tai-khoan' : '/login'} className="nav-pill">
                   <UserRound className="h-4 w-4" />
                   {isAuthenticated ? 'Tài khoản' : 'Đăng nhập'}
                 </Link>
                 {showCustomerActions ? (
                   <>
+                    {isAuthenticated ? (
+                      <Link to="/don-hang" className="nav-pill">
+                        <Package className="h-4 w-4" />
+                        Đơn hàng
+                      </Link>
+                    ) : null}
+                    <Link
+                      to="/ho-tro?partner=styles"
+                      className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-400 to-orange-300 px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(251,113,133,0.24)] transition hover:from-rose-500 hover:to-orange-400"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      AI Stylist
+                    </Link>
                     <Link to="/ho-tro?partner=warehouse" className="nav-pill">
                       <LifeBuoy className="h-4 w-4" />
                       CSKH
                     </Link>
                     <Link to="/yeu-thich" className="nav-pill">
                       <Heart className="h-4 w-4" />
-                      Wishlist
+                      Yêu thích
                     </Link>
                     <button type="button" className="nav-pill relative" onClick={() => toggleNotificationDrawer()}>
                       <Bell className="h-4 w-4" />
@@ -232,11 +274,15 @@ const StoreLayout = () => {
                       Giỏ hàng ({cartCount})
                     </Link>
                   </>
-                ) : (
-                  <Link to={isAdmin ? '/admin' : isWarehouse ? '/staff' : '/seller'} className="btn-secondary btn-secondary--sm">
-                    {isWarehouse ? 'Kênh nhân viên' : isAdmin ? 'Control Center' : 'Kênh bán hàng'}
-                  </Link>
-                )}
+                ) : workspaceLinks.length > 0 ? (
+                  <div className="flex items-center gap-2">
+                    {workspaceLinks.map((link) => (
+                      <Link key={link.to} to={link.to} className="btn-secondary btn-secondary--sm">
+                        {link.label}
+                      </Link>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex items-center gap-2 lg:hidden">
@@ -249,6 +295,19 @@ const StoreLayout = () => {
                 </Link>
                 {showCustomerActions ? (
                   <>
+                    {isAuthenticated ? (
+                      <Link to="/don-hang" className="nav-pill">
+                        <Package className="h-4 w-4" />
+                      </Link>
+                    ) : null}
+                    <Link
+                      to="/ho-tro?partner=styles"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-rose-400 to-orange-300 px-3 py-2 text-[11px] font-semibold text-white shadow-[0_10px_20px_rgba(251,113,133,0.24)]"
+                      aria-label="AI Stylist"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      AI
+                    </Link>
                     <Link to="/ho-tro?partner=warehouse" className="nav-pill">
                       <LifeBuoy className="h-4 w-4" />
                     </Link>
@@ -273,12 +332,24 @@ const StoreLayout = () => {
                       ) : null}
                     </Link>
                   </>
+                ) : workspaceLinks.length > 0 ? (
+                  <div className="flex items-center gap-2">
+                    {workspaceLinks.map((link) => (
+                      <Link
+                        key={link.to}
+                        to={link.to}
+                        className="btn-secondary btn-secondary--sm inline-flex items-center gap-1.5 px-3"
+                      >
+                        {link.label}
+                      </Link>
+                    ))}
+                  </div>
                 ) : null}
               </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <nav className="flex w-full flex-nowrap items-center gap-2 overflow-x-auto rounded-2xl border border-rose-200/70 bg-white/90 px-2 py-2 shadow-[0_10px_24px_rgba(148,163,184,0.12)] lg:w-auto lg:flex-wrap">
+              <nav className="flex w-full flex-nowrap items-center gap-2 overflow-x-auto rounded-[22px] border border-rose-200/70 bg-white/92 px-2 py-2 shadow-[0_10px_24px_rgba(148,163,184,0.12)] lg:w-auto lg:flex-wrap">
                 {navLinks.map((link) => (
                   <NavLink
                     key={link.path}
@@ -292,11 +363,13 @@ const StoreLayout = () => {
                 ))}
               </nav>
               <div className="hidden flex-wrap items-center gap-2 lg:flex">
-                {canManageOrders && (
-                  <Link to={isAdmin ? '/admin' : isWarehouse ? '/staff' : '/seller'} className="btn-secondary btn-secondary--sm">
-                    {isWarehouse ? 'Kênh nhân viên' : isAdmin ? 'Control Center' : 'Kênh bán hàng'}
-                  </Link>
-                )}
+                {canManageOrders
+                  ? workspaceLinks.map((link) => (
+                      <Link key={link.to} to={link.to} className="btn-secondary btn-secondary--sm">
+                        {link.label}
+                      </Link>
+                    ))
+                  : null}
               </div>
             </div>
 

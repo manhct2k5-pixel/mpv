@@ -8,6 +8,12 @@ public record SellerProfileResponse(
         String storeDescription,
         String storePhone,
         String storeAddress,
-        String storeLogoUrl
+        String storeLogoUrl,
+        String sellerBankName,
+        String sellerBankAccountName,
+        String sellerBankAccountNumber,
+        Boolean sellerOrderNotificationsEnabled,
+        Boolean sellerMarketingNotificationsEnabled,
+        Boolean sellerOperationAlertsEnabled
 ) {
 }

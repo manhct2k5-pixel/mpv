@@ -77,6 +77,21 @@ public class UserAccount {
 
     private String storeLogoUrl;
 
+    private String sellerBankName;
+
+    private String sellerBankAccountName;
+
+    private String sellerBankAccountNumber;
+
+    @Builder.Default
+    private Boolean sellerOrderNotificationsEnabled = Boolean.TRUE;
+
+    @Builder.Default
+    private Boolean sellerMarketingNotificationsEnabled = Boolean.FALSE;
+
+    @Builder.Default
+    private Boolean sellerOperationAlertsEnabled = Boolean.TRUE;
+
     @Builder.Default
     private Boolean darkModeEnabled = Boolean.TRUE;
 

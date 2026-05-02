@@ -194,12 +194,16 @@ public class SupportTicketService {
         }
 
         if (actor.getRole() == UserAccount.Role.SELLER) {
-            Set<SupportTicket> merged = new LinkedHashSet<>(supportTicketRepository.findByCreatedByOrderByCreatedAtDesc(actor));
+            Set<SupportTicket> merged = new LinkedHashSet<>(supportTicketRepository.findByCreatedByOrderByCreatedAtDesc(actor).stream()
+                    .filter(ticket -> canSellerAccessTicket(actor, ticket))
+                    .toList());
             List<Long> productIds = productRepository.findBySellerIdOrderByCreatedAtDesc(actor.getId()).stream()
                     .map(Product::getId)
                     .toList();
             if (!productIds.isEmpty()) {
-                merged.addAll(supportTicketRepository.findBySellerProductIds(productIds));
+                merged.addAll(supportTicketRepository.findBySellerProductIds(productIds).stream()
+                        .filter(ticket -> canSellerAccessTicket(actor, ticket))
+                        .toList());
             }
             return new ArrayList<>(merged);
         }
@@ -219,7 +223,16 @@ public class SupportTicketService {
     }
 
     private void ensureCanView(UserAccount actor, SupportTicket ticket) {
-        if (isSupportRole(actor.getRole()) || isCreator(actor, ticket)) {
+        if (isSupportRole(actor.getRole())) {
+            return;
+        }
+        if (actor.getRole() == UserAccount.Role.SELLER) {
+            if (canSellerAccessTicket(actor, ticket)) {
+                return;
+            }
+            throw new ResponseStatusException(FORBIDDEN, "Bạn không có quyền truy cập ticket này");
+        }
+        if (isCreator(actor, ticket)) {
             return;
         }
         Order order = ticket.getOrder();
@@ -263,7 +276,15 @@ public class SupportTicketService {
                 .map(Product::getId)
                 .collect(Collectors.toSet());
         return order.getItems().stream()
-                .anyMatch(item -> item.getProductId() != null && sellerProductIds.contains(item.getProductId()));
+                .allMatch(item -> item.getProductId() != null && sellerProductIds.contains(item.getProductId()));
+    }
+
+    private boolean canSellerAccessTicket(UserAccount actor, SupportTicket ticket) {
+        Order order = ticket.getOrder();
+        if (order == null) {
+            return isCreator(actor, ticket);
+        }
+        return isOrderManagedBySeller(actor, order);
     }
 
     private void ensureStatusTransition(SupportTicket.Status current, SupportTicket.Status next) {

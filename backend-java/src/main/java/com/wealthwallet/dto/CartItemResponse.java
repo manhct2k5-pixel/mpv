@@ -11,6 +11,7 @@ public record CartItemResponse(
         String color,
         Double unitPrice,
         Integer quantity,
-        Double lineTotal
+        Double lineTotal,
+        Integer stockQty
 ) {
 }

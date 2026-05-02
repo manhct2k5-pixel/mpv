@@ -1,20 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { financeApi, storeApi } from '../services/api.ts';
-import type { OrderSummary } from '../types/store';
+import { financeApi, staffApi, storeApi } from '../services/api.ts';
+import type { OrderSummary, StaffOrderWorkState, StaffTimelineLog } from '../types/store';
 import {
   getAllowedStatusUpdates,
   orderStatusLabels,
   type OrderWorkflowStatus
 } from '../utils/orderStatus.ts';
-
-type TimelineLog = {
-  at: string;
-  actor: string;
-  action: string;
-  note: string;
-  attachment?: string;
-};
 
 const timelineSteps = [
   { key: 'pending', label: 'Chờ xác nhận' },
@@ -29,12 +21,13 @@ const timelineSteps = [
   { key: 'cancelled', label: 'Đã hủy' }
 ];
 
-const stepIndexFromOrder = (status: string, paymentStatus: string) => {
+const stepIndexFromOrder = (status: string, paymentStatus: string, hasWaybill: boolean) => {
   const s = status.toLowerCase();
   const p = paymentStatus.toLowerCase();
   if (s === 'pending') return 0;
   if (s === 'processing') return 1;
   if (s === 'confirmed') return 2;
+  if (s === 'packing' && hasWaybill) return 4;
   if (s === 'packing') return 3;
   if (s === 'shipped') return 5;
   if (s === 'delivered') return 6;
@@ -49,7 +42,6 @@ const StaffStatusTimelinePage = () => {
   const [nextStatus, setNextStatus] = useState<OrderWorkflowStatus | ''>('');
   const [note, setNote] = useState('');
   const [attachmentUrl, setAttachmentUrl] = useState('');
-  const [logsByOrder, setLogsByOrder] = useState<Record<number, TimelineLog[]>>({});
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const { data: profile } = useQuery({
@@ -70,13 +62,27 @@ const StaffStatusTimelinePage = () => {
     enabled: isAdmin || staffId != null
   });
 
+  const { data: workStates = [] } = useQuery({
+    queryKey: ['staff-work-states'],
+    queryFn: staffApi.orderWorkStates,
+    enabled: isAdmin || staffId != null,
+    refetchInterval: 5_000
+  });
+
+  const workStateByOrderId = useMemo(
+    () => new Map(workStates.map((state) => [state.orderId, state])),
+    [workStates]
+  );
+
   const selectedOrder = useMemo(
     () => orders.find((order) => order.id === selectedOrderId) ?? null,
     [orders, selectedOrderId]
   );
 
-  const currentIndex = selectedOrder ? stepIndexFromOrder(selectedOrder.status, selectedOrder.paymentStatus) : -1;
-  const logs = selectedOrder ? logsByOrder[selectedOrder.id] ?? [] : [];
+  const selectedWorkState = selectedOrder ? workStateByOrderId.get(selectedOrder.id) : null;
+  const hasWaybill = Boolean(selectedWorkState?.waybill);
+  const currentIndex = selectedOrder ? stepIndexFromOrder(selectedOrder.status, selectedOrder.paymentStatus, hasWaybill) : -1;
+  const logs = selectedWorkState?.timelineLogs ?? [];
 
   const updateStatusMutation = useMutation({
     mutationFn: (payload: { id: number; status: string }) => storeApi.updateOrderStatus(payload.id, payload.status),
@@ -86,6 +92,23 @@ const StaffStatusTimelinePage = () => {
     },
     onError: (error: any) => {
       setStatusMessage(error.response?.data?.message || error.response?.data?.error || 'Không cập nhật được trạng thái đơn.');
+    }
+  });
+
+  const appendLogMutation = useMutation({
+    mutationFn: (payload: { orderId: number; timelineLog: StaffTimelineLog }) =>
+      staffApi.updateOrderWorkState(payload.orderId, { timelineLog: payload.timelineLog }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<StaffOrderWorkState[]>(['staff-work-states'], (current = []) => {
+        const exists = current.some((state) => state.orderId === updated.orderId);
+        return exists
+          ? current.map((state) => (state.orderId === updated.orderId ? updated : state))
+          : [...current, updated];
+      });
+      queryClient.invalidateQueries({ queryKey: ['staff-work-states'] });
+    },
+    onError: (error: any) => {
+      setStatusMessage(error.response?.data?.message || error.response?.data?.error || 'Không lưu được timeline vào backend.');
     }
   });
 
@@ -102,19 +125,21 @@ const StaffStatusTimelinePage = () => {
     setNextStatus((prev) => (prev && availableStatuses.includes(prev) ? prev : availableStatuses[0]));
   }, [availableStatuses]);
 
-  const appendLog = (action: string, extraNote: string) => {
+  const appendLog = (
+    action: string,
+    extraNote: string,
+    kind: StaffTimelineLog['kind'] = 'internal'
+  ) => {
     if (!selectedOrder) return;
-    const entry: TimelineLog = {
+    const entry: StaffTimelineLog = {
       at: new Date().toISOString(),
       actor: actorName,
       action,
       note: extraNote || 'Không có ghi chú',
-      attachment: attachmentUrl.trim() || undefined
+      attachment: attachmentUrl.trim() || undefined,
+      kind
     };
-    setLogsByOrder((prev) => ({
-      ...prev,
-      [selectedOrder.id]: [entry, ...(prev[selectedOrder.id] ?? [])]
-    }));
+    appendLogMutation.mutate({ orderId: selectedOrder.id, timelineLog: entry });
   };
 
   const onUpdateStatus = () => {
@@ -129,7 +154,7 @@ const StaffStatusTimelinePage = () => {
       { id: selectedOrder.id, status: nextStatus },
       {
         onSuccess: () => {
-          appendLog(`Cập nhật trạng thái -> ${orderStatusLabels[nextStatus]}`, note.trim());
+          appendLog(`Cập nhật trạng thái -> ${orderStatusLabels[nextStatus]}`, note.trim(), 'status');
           setStatusMessage(`Đã cập nhật trạng thái đơn ${selectedOrder.orderNumber}.`);
           setNote('');
           setAttachmentUrl('');
@@ -147,7 +172,8 @@ const StaffStatusTimelinePage = () => {
             Timeline trạng thái và lịch sử xử lý
           </h1>
           <p className="max-w-3xl text-sm text-[var(--admin-muted)]">
-            Đồng bộ tiến độ đơn giữa staff, seller, admin và khách hàng theo từng mốc xử lý thực tế.
+            Đồng bộ tiến độ đơn giữa staff, seller, admin và khách hàng theo từng mốc xử lý thực tế. Ghi chú và log
+            thông báo nội bộ sẽ được lưu vào database theo mã đơn hàng.
           </p>
         </div>
       </section>
@@ -256,9 +282,10 @@ const StaffStatusTimelinePage = () => {
                     type="button"
                     className="admin-inline-button"
                     onClick={() => {
-                      appendLog('Thêm ghi chú nội bộ', note.trim());
+                      appendLog('Thêm ghi chú nội bộ', note.trim(), 'internal');
                       setStatusMessage('Đã thêm ghi chú nội bộ.');
                       setNote('');
+                      setAttachmentUrl('');
                     }}
                   >
                     Thêm ghi chú
@@ -266,14 +293,24 @@ const StaffStatusTimelinePage = () => {
                   <button
                     type="button"
                     className="admin-inline-button"
-                    onClick={() => setStatusMessage('Đã gửi thông báo cho khách hàng.')}
+                    onClick={() => {
+                      appendLog('Gửi thông báo khách hàng', note.trim() || 'Đã gửi cập nhật tiến độ cho khách hàng.', 'notify_customer');
+                      setStatusMessage('Đã ghi nhận thông báo gửi cho khách hàng.');
+                      setNote('');
+                      setAttachmentUrl('');
+                    }}
                   >
                     Gửi thông báo khách
                   </button>
                   <button
                     type="button"
                     className="admin-inline-button"
-                    onClick={() => setStatusMessage('Đã gửi thông báo cho người bán.')}
+                    onClick={() => {
+                      appendLog('Gửi thông báo seller', note.trim() || 'Đã gửi cập nhật tiến độ cho người bán.', 'notify_seller');
+                      setStatusMessage('Đã ghi nhận thông báo gửi cho người bán.');
+                      setNote('');
+                      setAttachmentUrl('');
+                    }}
                   >
                     Gửi thông báo seller
                   </button>
@@ -291,7 +328,9 @@ const StaffStatusTimelinePage = () => {
         <div className="admin-section__header">
           <div>
             <h2 className="admin-section__title">Lịch sử cập nhật</h2>
-            <p className="admin-section__description">Mỗi lần cập nhật gồm thời gian, nhân viên, ghi chú và file đính kèm.</p>
+            <p className="admin-section__description">
+              Lịch sử nội bộ của ca trực gồm thời gian, nhân viên, ghi chú và file đính kèm; dữ liệu được đồng bộ qua API.
+            </p>
           </div>
         </div>
         {selectedOrder ? (

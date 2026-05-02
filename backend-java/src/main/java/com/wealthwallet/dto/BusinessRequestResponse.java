@@ -7,6 +7,13 @@ public record BusinessRequestResponse(
         String fullName,
         String email,
         String role,
-        LocalDateTime requestedAt
+        LocalDateTime requestedAt,
+        String storeName,
+        String storePhone,
+        String storeAddress,
+        String storeDescription,
+        String storeLogoUrl,
+        String avatarUrl,
+        LocalDateTime createdAt
 ) {
 }

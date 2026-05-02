@@ -1,5 +1,6 @@
 package com.wealthwallet.repository;
 
+import com.wealthwallet.domain.entity.Order;
 import com.wealthwallet.domain.entity.ReturnRequest;
 import com.wealthwallet.domain.entity.UserAccount;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,6 +12,8 @@ import java.util.List;
 public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, Long> {
 
     boolean existsByRequestCode(String requestCode);
+
+    boolean existsByOrder(Order order);
 
     List<ReturnRequest> findByCreatedByOrderByCreatedAtDesc(UserAccount createdBy);
 

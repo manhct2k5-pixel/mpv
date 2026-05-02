@@ -1,24 +1,34 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
-import { ArrowRight, ChevronDown, ChevronUp, Lock, Mail, Sparkles } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import axios from 'axios';
+import { ArrowRight, Lock, Mail, Sparkles } from 'lucide-react';
 import AuthLayout from '../components/layout/AuthLayout.tsx';
 import { useAuthStore } from '../store/auth.ts';
-import { api } from '../services/api.ts';
+import { api, getApiErrorMessage } from '../services/api.ts';
+import type { UserProfile } from '../types/app';
 
 const quickAccounts = [
   { label: 'Demo khách', email: 'user@shopvui.local', password: 'password' },
   { label: 'Demo seller', email: 'seller@shopvui.local', password: 'password' },
-  { label: 'Demo staff', email: 'warehouse@shopvui.local', password: 'password' }
+  { label: 'Demo staff', email: 'warehouse@shopvui.local', password: 'password' },
+  { label: 'Demo admin', email: 'admin@shopvui.local', password: 'password' }
 ];
+
+const SHOW_DEMO_ACCOUNTS = import.meta.env.DEV || import.meta.env.VITE_SHOW_DEMO_ACCOUNTS === 'true';
+const DEMO_ACCOUNT_CREDENTIALS = new Map(
+  quickAccounts.map((account) => [account.email.toLowerCase(), account.password])
+);
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
-  const [isDemoExpanded, setIsDemoExpanded] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{
+    tone: 'success' | 'error' | 'info';
+    text: string;
+  } | null>(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const login = useAuthStore((state) => state.login);
 
   const loginMutation = useMutation({
@@ -29,39 +39,65 @@ const LoginPage = () => {
     onSuccess: async (data) => {
       if (data.token) {
         login(data.token);
-        setStatusMessage('Đăng nhập thành công! Đang chuyển hướng...');
+        setStatusMessage({ tone: 'success', text: 'Đăng nhập thành công! Đang chuyển hướng...' });
         try {
-          const profileResponse = await api.get('/user');
-          const rawRole = String(profileResponse.data?.role ?? '').toLowerCase();
-          const role = rawRole === 'styles' ? 'warehouse' : rawRole;
-          const nextPath =
-            role === 'admin'
-              ? '/admin'
-              : role === 'warehouse'
-                ? '/staff'
-                : role === 'seller'
-                  ? '/seller'
-                  : '/';
-          setTimeout(() => navigate(nextPath), 400);
+          const profileResponse = await api.get<UserProfile>('/user');
+          const profile = profileResponse.data;
+          queryClient.setQueryData(['profile'], profile);
+          setTimeout(() => navigate('/', { replace: true }), 250);
         } catch {
-          setTimeout(() => navigate('/'), 400);
+          queryClient.removeQueries({ queryKey: ['profile'], exact: true });
+          setTimeout(() => navigate('/', { replace: true }), 250);
         }
       }
     },
-    onError: (error: any) => {
-      setStatusMessage(error.response?.data?.error || 'Đăng nhập thất bại. Vui lòng thử lại.');
+    onError: (error: unknown, variables) => {
+      const attemptedEmail = String(variables?.email ?? '').trim().toLowerCase();
+      const attemptedPassword = String(variables?.password ?? '');
+      const demoPassword = DEMO_ACCOUNT_CREDENTIALS.get(attemptedEmail);
+      const attemptedKnownDemoAccount = demoPassword !== undefined && attemptedPassword === demoPassword;
+      if (attemptedKnownDemoAccount && axios.isAxiosError(error) && error.response?.status === 401) {
+        setStatusMessage({
+          tone: 'error',
+          text: 'Tài khoản demo chưa sẵn sàng trên backend hiện tại. Hãy chạy start.bat hoặc bật APP_SEED_DEMO_DATA=true rồi thử lại.'
+        });
+        return;
+      }
+      setStatusMessage({
+        tone: 'error',
+        text: getApiErrorMessage(error, 'Đăng nhập thất bại. Vui lòng thử lại.', {
+          networkMessage:
+            'Không kết nối được tới backend. Hãy chạy backend ở cổng 8080 hoặc dùng start.bat để mở cả backend và frontend.',
+          validationMessage: 'Email không hợp lệ. Vui lòng kiểm tra lại địa chỉ email.'
+        })
+      });
     }
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    loginMutation.mutate({ email, password });
+  const submitLogin = (credentials: { email: string; password: string }) => {
+    const normalizedEmail = credentials.email.trim();
+    setEmail(normalizedEmail);
+    setPassword(credentials.password);
+    setStatusMessage(null);
+    loginMutation.mutate({ email: normalizedEmail, password: credentials.password });
   };
 
-  const handleQuickFill = (account: (typeof quickAccounts)[number]) => {
-    setEmail(account.email);
-    setPassword(account.password);
-    setStatusMessage(`Đã điền thông tin cho ${account.label}`);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitLogin({ email, password });
+  };
+
+  const handleQuickLogin = (account: (typeof quickAccounts)[number]) => {
+    setStatusMessage({ tone: 'info', text: `Đang đăng nhập bằng ${account.label}...` });
+    submitLogin({ email: account.email, password: account.password });
+  };
+
+  const handleForgotPassword = () => {
+    loginMutation.reset();
+    setStatusMessage({
+      tone: 'info',
+      text: 'Khôi phục mật khẩu chưa được cấu hình trên backend. Vui lòng liên hệ admin để đặt lại mật khẩu.'
+    });
   };
 
   return (
@@ -86,42 +122,32 @@ const LoginPage = () => {
       }
     >
       <div className="space-y-5">
-        {quickAccounts.length > 0 && (
+        {SHOW_DEMO_ACCOUNTS && quickAccounts.length > 0 && (
           <div className="space-y-3 rounded-2xl border-2 border-caramel/30 bg-white/70 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold uppercase text-cocoa/60">Tài khoản demo</p>
-              <button
-                type="button"
-                aria-expanded={isDemoExpanded}
-                aria-controls="demo-accounts-panel"
-                onClick={() => setIsDemoExpanded((prev) => !prev)}
-                className="inline-flex items-center gap-1 rounded-xl border border-caramel/40 bg-white/80 px-3 py-1.5 text-xs font-semibold text-cocoa transition hover:bg-cream"
-              >
-                {isDemoExpanded ? 'Ẩn tài khoản demo' : 'Mở tài khoản demo'}
-                {isDemoExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              </button>
-            </div>
-            {isDemoExpanded ? (
-              <div id="demo-accounts-panel" className="flex flex-wrap gap-3">
-                {quickAccounts.map((account) => (
-                  <button
-                    key={account.label}
-                    type="button"
-                    onClick={() => handleQuickFill(account)}
-                    className="flex-1 rounded-2xl border-2 border-caramel/40 bg-white/70 px-4 py-2 text-xs font-semibold text-cocoa transition hover:-translate-y-0.5 hover:bg-cream"
-                  >
-                    Dùng {account.label}
-                  </button>
-                ))}
+            <p className="text-xs font-semibold uppercase text-cocoa/60">Tài khoản demo</p>
+            <p className="text-xs text-cocoa/65">
+              Bấm để đăng nhập nhanh 4 tài khoản mẫu. Các tài khoản này chỉ dùng được khi backend bật <code>APP_SEED_DEMO_DATA=true</code>.
+            </p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {quickAccounts.map((account) => (
                 <button
+                  key={account.label}
                   type="button"
-                  onClick={() => navigate('/dang-ky-nguoi-ban')}
-                  className="flex-1 rounded-2xl border-2 border-caramel/40 bg-latte/30 px-4 py-2 text-xs font-semibold text-cocoa transition hover:-translate-y-0.5 hover:bg-latte/50"
+                  onClick={() => handleQuickLogin(account)}
+                  disabled={loginMutation.isPending}
+                  className="rounded-2xl border-2 border-caramel/40 bg-white/70 px-4 py-2 text-xs font-semibold text-cocoa transition hover:-translate-y-0.5 hover:bg-cream"
                 >
-                  Đăng ký seller
+                  Đăng nhập {account.label}
                 </button>
-              </div>
-            ) : null}
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/dang-ky-nguoi-ban')}
+              className="w-full rounded-2xl border-2 border-caramel/40 bg-latte/30 px-4 py-2 text-xs font-semibold text-cocoa transition hover:-translate-y-0.5 hover:bg-latte/50"
+            >
+              Đăng ký seller
+            </button>
           </div>
         )}
 
@@ -166,19 +192,12 @@ const LoginPage = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-sm text-cocoa/70">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                name="rememberMe"
-                autoComplete="off"
-                className="h-4 w-4 rounded border-caramel/40 bg-white/70 text-mocha focus:ring-caramel/50"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-              />
-              Nhớ đăng nhập
-            </label>
-            <button type="button" className="text-mocha underline-offset-4 hover:underline">
+          <div className="flex justify-end text-sm text-cocoa/70">
+            <button
+              type="button"
+              className="text-mocha underline-offset-4 hover:underline"
+              onClick={handleForgotPassword}
+            >
               Quên mật khẩu?
             </button>
           </div>
@@ -186,12 +205,14 @@ const LoginPage = () => {
           {statusMessage && (
             <div
               className={`rounded-2xl border-2 px-4 py-3 text-sm ${
-                loginMutation.isError
+                statusMessage.tone === 'error'
                   ? 'border-rose-500/40 bg-rose-200/50 text-rose-700'
-                  : 'border-emerald-500/40 bg-emerald-200/50 text-emerald-700'
+                  : statusMessage.tone === 'success'
+                    ? 'border-emerald-500/40 bg-emerald-200/50 text-emerald-700'
+                    : 'border-sky-500/40 bg-sky-200/50 text-sky-700'
               }`}
             >
-              {statusMessage}
+              {statusMessage.text}
             </div>
           )}
 

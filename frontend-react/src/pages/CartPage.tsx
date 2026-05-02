@@ -5,6 +5,8 @@ import { Minus, Plus, Trash2 } from 'lucide-react';
 import { financeApi, storeApi } from '../services/api.ts';
 import { useAuthStore } from '../store/auth.ts';
 import { getRoutePrefetchHandlers } from '../utils/routePrefetch';
+import ProductImage from '../components/store/ProductImage';
+import { canUseShoppingFlow } from '../utils/access';
 
 const CartPage = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -12,6 +14,7 @@ const CartPage = () => {
   const navigate = useNavigate();
   const [voucherCode, setVoucherCode] = useState('');
   const [voucherMessage, setVoucherMessage] = useState<string | null>(null);
+  const [cartMessage, setCartMessage] = useState<string | null>(null);
   const homePrefetchHandlers = getRoutePrefetchHandlers('home');
   const productDetailPrefetchHandlers = getRoutePrefetchHandlers('productDetail');
   const checkoutPrefetchHandlers = getRoutePrefetchHandlers('checkout');
@@ -21,12 +24,12 @@ const CartPage = () => {
     enabled: isAuthenticated,
     retry: 1
   });
-  const isCustomer = (profile?.role ?? '').toLowerCase() === 'user';
+  const canShop = canUseShoppingFlow(profile?.role);
 
-  const { data: cart, isLoading } = useQuery({
+  const { data: cart, isLoading, isError } = useQuery({
     queryKey: ['store-cart'],
     queryFn: storeApi.cart,
-    enabled: isAuthenticated && isCustomer
+    enabled: isAuthenticated && canShop
   });
 
   const updateMutation = useMutation({
@@ -34,6 +37,10 @@ const CartPage = () => {
       storeApi.updateCartItem(payload.id, payload.quantity),
     onSuccess: (data) => {
       queryClient.setQueryData(['store-cart'], data);
+      setCartMessage(null);
+    },
+    onError: (error: any) => {
+      setCartMessage(error.response?.data?.message ?? 'Không thể cập nhật số lượng trong giỏ hàng.');
     }
   });
 
@@ -41,6 +48,7 @@ const CartPage = () => {
     mutationFn: (id: number) => storeApi.removeCartItem(id),
     onSuccess: (data) => {
       queryClient.setQueryData(['store-cart'], data);
+      setCartMessage(null);
     }
   });
 
@@ -81,6 +89,18 @@ const CartPage = () => {
   const subtotalBeforeDiscount = cart?.subtotalBeforeDiscount ?? cart?.subtotal ?? 0;
   const voucherDiscount = cart?.voucherDiscount ?? cart?.discount ?? 0;
 
+  const handleIncreaseItem = (item: NonNullable<typeof cart>['items'][number]) => {
+    if (item.stockQty != null && item.quantity >= item.stockQty) {
+      setCartMessage(
+        item.stockQty > 0
+          ? `Bạn chỉ có thể chọn tối đa ${item.stockQty} sản phẩm cho ${item.productName ?? 'biến thể này'}.`
+          : `${item.productName ?? 'Biến thể này'} hiện đã hết hàng.`
+      );
+      return;
+    }
+    updateMutation.mutate({ id: item.id, quantity: item.quantity + 1 });
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
@@ -97,18 +117,34 @@ const CartPage = () => {
     );
   }
 
-  if (!isCustomer) {
+  if (!canShop) {
     return (
       <div className="rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
-        Chức năng giỏ hàng chỉ dành cho tài khoản khách hàng (Customer).
+        Chức năng giỏ hàng dành cho tài khoản khách hàng.
       </div>
     );
   }
 
-  if (isLoading || !cart) {
+  if (isLoading) {
     return (
       <div className="rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
         Đang tải giỏ hàng...
+      </div>
+    );
+  }
+
+  if (isError || !cart) {
+    return (
+      <div className="space-y-4 rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
+        <p>Không tải được giỏ hàng. Kiểm tra backend hoặc đăng nhập lại rồi thử tiếp.</p>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn-secondary !border-rose-200/80 !bg-white/90" onClick={() => window.location.reload()}>
+            Tải lại
+          </button>
+          <Link to="/" className="btn-secondary !border-rose-200/80 !bg-white/90">
+            Về trang chủ
+          </Link>
+        </div>
       </div>
     );
   }
@@ -133,6 +169,12 @@ const CartPage = () => {
         </div>
       </section>
 
+      {cartMessage ? (
+        <div className="rounded-3xl border border-rose-200/70 bg-rose-50/80 px-4 py-3 text-sm text-rose-700 shadow-[0_12px_24px_rgba(148,163,184,0.08)]">
+          {cartMessage}
+        </div>
+      ) : null}
+
       {cart.items.length === 0 ? (
         <div className="space-y-4 rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
           <p>Giỏ hàng đang trống.</p>
@@ -151,13 +193,16 @@ const CartPage = () => {
             {cart.items.map((item) => (
               <div
                 key={item.id}
-                className="flex flex-col gap-4 rounded-3xl border border-rose-200/70 bg-white/90 p-4 shadow-[0_12px_24px_rgba(148,163,184,0.14)] sm:flex-row sm:items-center"
+                className="flex flex-col gap-4 rounded-3xl border border-rose-200/70 bg-white/92 p-4 shadow-[0_12px_24px_rgba(148,163,184,0.14)] sm:flex-row sm:items-center"
               >
-                <div className="h-20 w-20 rounded-2xl bg-rose-50/70">
-                  {item.imageUrl ? (
-                    <img src={item.imageUrl} alt={item.productName ?? 'Product'} className="h-full w-full rounded-2xl object-cover" />
-                  ) : null}
-                </div>
+                <ProductImage
+                  src={item.imageUrl}
+                  alt={item.productName ?? 'Product'}
+                  title={item.productName ?? 'Sản phẩm'}
+                  subtitle={item.color ?? item.size ?? 'Mộc Mầm'}
+                  className="h-20 w-20 rounded-2xl"
+                  compact
+                />
                 <div className="flex-1 space-y-1">
                   <Link
                     to={item.productSlug ? `/san-pham/${item.productSlug}` : '/'}
@@ -169,6 +214,11 @@ const CartPage = () => {
                   <p className="text-xs text-cocoa/60">
                     {item.size} · {item.color}
                   </p>
+                  {item.stockQty != null ? (
+                    <p className={`text-xs ${item.stockQty > 0 ? 'text-cocoa/60' : 'text-rose-600'}`}>
+                      {item.stockQty > 0 ? `Tồn kho còn ${item.stockQty} sản phẩm.` : 'Biến thể này đã hết hàng.'}
+                    </p>
+                  ) : null}
                   <p className="text-sm font-semibold text-mocha">{formatPrice(item.unitPrice)}</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -184,7 +234,7 @@ const CartPage = () => {
                     <button
                       type="button"
                       className="rounded-full p-1 text-mocha hover:bg-rose-200/45"
-                      onClick={() => updateMutation.mutate({ id: item.id, quantity: item.quantity + 1 })}
+                      onClick={() => handleIncreaseItem(item)}
                     >
                       <Plus className="h-4 w-4" />
                     </button>
@@ -202,7 +252,7 @@ const CartPage = () => {
             ))}
           </div>
 
-          <div className="space-y-4 rounded-3xl border border-rose-200/70 bg-white/90 p-5 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
+          <div className="space-y-4 rounded-3xl border border-rose-200/70 bg-white/92 p-5 shadow-[0_12px_24px_rgba(148,163,184,0.14)] lg:sticky lg:top-28">
             <h2 className="text-lg font-semibold text-cocoa">Tóm tắt đơn</h2>
             <div className="space-y-2 rounded-2xl border border-rose-200/70 bg-rose-50/40 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-cocoa/60">Voucher</p>

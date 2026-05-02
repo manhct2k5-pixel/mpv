@@ -11,6 +11,7 @@ import AdminRoute from './components/layout/AdminRoute.tsx';
 import CustomerRoute from './components/layout/CustomerRoute.tsx';
 
 const StorefrontPage = lazy(() => import('./pages/StorefrontPage.tsx'));
+const AllProductsPage = lazy(() => import('./pages/AllProductsPage.tsx'));
 const StoreCategoryPage = lazy(() => import('./pages/StoreCategoryPage.tsx'));
 const LookbookPage = lazy(() => import('./pages/LookbookPage.tsx'));
 const LookbookDetailPage = lazy(() => import('./pages/LookbookDetailPage.tsx'));
@@ -146,15 +147,6 @@ const App = () => {
           <Route path="/seller/danh-gia" element={<SellerRatingsPage />} />
           <Route path="/seller/van-hanh" element={<SellerOperationsPage />} />
           <Route
-            path="/seller/tao-don"
-            element={
-              <StaffRoute>
-                <StyleOrderCreatePage />
-              </StaffRoute>
-            }
-          />
-          <Route path="/seller/style-order" element={<Navigate to="/seller/tao-don" replace />} />
-          <Route
             path="/seller/control-center"
             element={
               <AdminRoute>
@@ -184,6 +176,7 @@ const App = () => {
           <Route path="/admin/catalog-config" element={<AdminCatalogConfigPage />} />
           <Route path="/admin/system" element={<Navigate to="/admin/catalog-config" replace />} />
           <Route path="/admin/orders" element={<AdminOrdersPage />} />
+          <Route path="/admin/manual-order" element={<StyleOrderCreatePage />} />
           <Route path="/admin/reports" element={<AdminReportsPage />} />
           <Route path="/admin/refunds" element={<AdminRefundsPage />} />
           <Route path="/admin/logs" element={<AdminLogsPage />} />
@@ -211,6 +204,7 @@ const App = () => {
 
         <Route element={<StoreLayout />}>
           <Route path="/" element={<StorefrontPage />} />
+          <Route path="/san-pham" element={<AllProductsPage />} />
           <Route path="/nu" element={<StoreCategoryPage slug="nu" />} />
           <Route path="/nam" element={<StoreCategoryPage slug="nam" />} />
           <Route path="/phu-kien" element={<StoreCategoryPage slug="phu-kien" />} />
@@ -236,9 +230,7 @@ const App = () => {
             path="/dat-hang-thanh-cong"
             element={
               <ProtectedRoute>
-                <CustomerRoute>
-                  <OrderSuccessPage />
-                </CustomerRoute>
+                <OrderSuccessPage />
               </ProtectedRoute>
             }
           />
@@ -301,9 +293,7 @@ const App = () => {
             path="/tai-khoan/dia-chi"
             element={
               <ProtectedRoute>
-                <CustomerRoute>
-                  <AddressBookPage />
-                </CustomerRoute>
+                <AddressBookPage />
               </ProtectedRoute>
             }
           />

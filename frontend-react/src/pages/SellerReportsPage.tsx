@@ -14,6 +14,12 @@ type ProductStat = {
   revenue: number;
 };
 
+type FilteredOrderEntry = {
+  summary: OrderSummary;
+  revenue: number;
+  items: Order['items'];
+};
+
 const PERIOD_OPTIONS: Array<{ value: PeriodPreset; label: string }> = [
   { value: 'day', label: 'Theo ngày' },
   { value: 'week', label: 'Theo tuần' },
@@ -101,6 +107,69 @@ const toCsv = (rows: string[][]) =>
     )
     .join('\n');
 
+const sumItemRevenue = (items: Order['items']) =>
+  items.reduce((sum, item) => sum + (item.unitPrice ?? 0) * (item.quantity ?? 0), 0);
+
+const itemMatchesFilters = (
+  item: Order['items'][number],
+  productById: Map<number, StoreProductSummary>,
+  categoryFilter: string,
+  productQuery: string
+) => {
+  const product = item.productId != null ? productById.get(item.productId) : undefined;
+  const itemCategory = product?.category ?? '';
+  const itemName = (item.productName ?? product?.name ?? '').toLowerCase();
+  const passCategory = categoryFilter === 'all' || itemCategory === categoryFilter;
+  const passQuery = !productQuery || itemName.includes(productQuery);
+  return passCategory && passQuery;
+};
+
+const buildFilteredEntries = ({
+  sourceOrders,
+  orderById,
+  filtersActive,
+  productById,
+  categoryFilter,
+  productQuery
+}: {
+  sourceOrders: OrderSummary[];
+  orderById: Map<number, Order>;
+  filtersActive: boolean;
+  productById: Map<number, StoreProductSummary>;
+  categoryFilter: string;
+  productQuery: string;
+}): FilteredOrderEntry[] =>
+  sourceOrders.flatMap((summary): FilteredOrderEntry[] => {
+    const detailed = orderById.get(summary.id);
+    if (!detailed) {
+      if (filtersActive) {
+        return [];
+      }
+      return [
+        {
+          summary,
+          revenue: summary.total ?? 0,
+          items: []
+        }
+      ];
+    }
+
+    const matchingItems = filtersActive
+      ? detailed.items.filter((item) => itemMatchesFilters(item, productById, categoryFilter, productQuery))
+      : detailed.items;
+    if (matchingItems.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        summary,
+        revenue: filtersActive ? sumItemRevenue(matchingItems) : summary.total ?? 0,
+        items: matchingItems
+      }
+    ];
+  });
+
 const SellerReportsPage = () => {
   const today = useMemo(() => formatDateInput(new Date()), []);
   const [period, setPeriod] = useState<PeriodPreset>('week');
@@ -151,7 +220,10 @@ const SellerReportsPage = () => {
     [orders, windowRange.previousEnd, windowRange.previousStart]
   );
 
-  const detailOrderIds = useMemo(() => ordersInRange.map((order) => order.id), [ordersInRange]);
+  const detailOrderIds = useMemo(
+    () => Array.from(new Set([...ordersInRange, ...previousOrders].map((order) => order.id))),
+    [ordersInRange, previousOrders]
+  );
 
   const { data: detailedOrders = [] } = useQuery<Order[]>({
     queryKey: ['seller-reports-order-details', role, ...detailOrderIds],
@@ -170,43 +242,42 @@ const SellerReportsPage = () => {
   }, [products]);
 
   const productQuery = productFilter.trim().toLowerCase();
+  const filtersActive = categoryFilter !== 'all' || productQuery.length > 0;
   const productById = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
   const orderById = useMemo(() => new Map(detailedOrders.map((order) => [order.id, order])), [detailedOrders]);
 
-  const filteredOrderIds = useMemo(() => {
-    if (categoryFilter === 'all' && !productQuery) {
-      return new Set(ordersInRange.map((order) => order.id));
-    }
-
-    const ids = new Set<number>();
-    ordersInRange.forEach((order) => {
-      const detailed = orderById.get(order.id);
-      if (!detailed) return;
-      const hasMatch = detailed.items.some((item) => {
-        const product = item.productId != null ? productById.get(item.productId) : undefined;
-        const itemCategory = product?.category ?? '';
-        const itemName = (item.productName ?? product?.name ?? '').toLowerCase();
-        const passCategory = categoryFilter === 'all' || itemCategory === categoryFilter;
-        const passQuery = !productQuery || itemName.includes(productQuery);
-        return passCategory && passQuery;
-      });
-      if (hasMatch) {
-        ids.add(order.id);
-      }
-    });
-    return ids;
-  }, [categoryFilter, orderById, ordersInRange, productById, productQuery]);
-
-  const filteredOrders = useMemo(
-    () => ordersInRange.filter((order) => filteredOrderIds.has(order.id)),
-    [filteredOrderIds, ordersInRange]
+  const filteredEntries = useMemo(
+    () =>
+      buildFilteredEntries({
+        sourceOrders: ordersInRange,
+        orderById,
+        filtersActive,
+        productById,
+        categoryFilter,
+        productQuery
+      }),
+    [categoryFilter, filtersActive, orderById, ordersInRange, productById, productQuery]
   );
+
+  const previousFilteredEntries = useMemo(
+    () =>
+      buildFilteredEntries({
+        sourceOrders: previousOrders,
+        orderById,
+        filtersActive,
+        productById,
+        categoryFilter,
+        productQuery
+      }),
+    [categoryFilter, filtersActive, orderById, previousOrders, productById, productQuery]
+  );
+
+  const filteredOrders = useMemo(() => filteredEntries.map((entry) => entry.summary), [filteredEntries]);
 
   const productStats = useMemo(() => {
     const map = new Map<string, ProductStat>();
-    detailedOrders.forEach((order) => {
-      if (!filteredOrderIds.has(order.id)) return;
-      order.items.forEach((item) => {
+    filteredEntries.forEach((entry) => {
+      entry.items.forEach((item) => {
         const product = item.productId != null ? productById.get(item.productId) : undefined;
         const key = item.productId != null ? `id-${item.productId}` : `name-${item.productName ?? item.id}`;
         const name = item.productName ?? product?.name ?? 'Sản phẩm không xác định';
@@ -224,23 +295,34 @@ const SellerReportsPage = () => {
       });
     });
     return Array.from(map.values()).sort((a, b) => b.quantity - a.quantity);
-  }, [detailedOrders, filteredOrderIds, productById]);
+  }, [filteredEntries, productById]);
 
   const topProducts = useMemo(() => productStats.slice(0, 5), [productStats]);
 
+  const visibleProducts = useMemo(() => {
+    if (!filtersActive) {
+      return products;
+    }
+    return products.filter((product) => {
+      const passCategory = categoryFilter === 'all' || product.category === categoryFilter;
+      const passQuery = !productQuery || product.name.toLowerCase().includes(productQuery);
+      return passCategory && passQuery;
+    });
+  }, [categoryFilter, filtersActive, productQuery, products]);
+
   const slowProducts = useMemo(() => {
     const activeSaleKeys = new Set(topProducts.map((item) => item.name.toLowerCase()));
-    return products
+    return visibleProducts
       .filter((product) => !activeSaleKeys.has(product.name.toLowerCase()))
       .slice(0, 5);
-  }, [products, topProducts]);
+  }, [topProducts, visibleProducts]);
 
   const grossRevenue = useMemo(
     () =>
-      filteredOrders
-        .filter((order) => order.status.toLowerCase() !== 'cancelled')
-        .reduce((sum, order) => sum + (order.total ?? 0), 0),
-    [filteredOrders]
+      filteredEntries
+        .filter((entry) => entry.summary.status.toLowerCase() !== 'cancelled')
+        .reduce((sum, entry) => sum + entry.revenue, 0),
+    [filteredEntries]
   );
   const completedOrders = useMemo(
     () => filteredOrders.filter((order) => order.status.toLowerCase() === 'delivered').length,
@@ -260,10 +342,10 @@ const SellerReportsPage = () => {
 
   const previousRevenue = useMemo(
     () =>
-      previousOrders
-        .filter((order) => order.status.toLowerCase() !== 'cancelled')
-        .reduce((sum, order) => sum + (order.total ?? 0), 0),
-    [previousOrders]
+      previousFilteredEntries
+        .filter((entry) => entry.summary.status.toLowerCase() !== 'cancelled')
+        .reduce((sum, entry) => sum + entry.revenue, 0),
+    [previousFilteredEntries]
   );
   const revenueDelta = percentageDelta(grossRevenue, previousRevenue);
 
@@ -276,11 +358,13 @@ const SellerReportsPage = () => {
       const bucketEnd = endOfDay(
         addDays(windowRange.start, Math.min(windowRange.durationDays - 1, day + bucketSizeDays - 1))
       );
-      const bucketOrders = filteredOrders.filter((order) => {
-        const createdAt = new Date(order.createdAt).getTime();
+      const bucketEntries = filteredEntries.filter((entry) => {
+        const createdAt = new Date(entry.summary.createdAt).getTime();
         return createdAt >= bucketStart.getTime() && createdAt <= bucketEnd.getTime();
       });
-      const revenue = bucketOrders.reduce((sum, order) => sum + (order.total ?? 0), 0);
+      const revenue = bucketEntries
+        .filter((entry) => entry.summary.status.toLowerCase() !== 'cancelled')
+        .reduce((sum, entry) => sum + entry.revenue, 0);
       const label =
         bucketSizeDays === 1
           ? bucketStart.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
@@ -291,12 +375,12 @@ const SellerReportsPage = () => {
       rows.push({
         label,
         revenue,
-        orders: bucketOrders.length
+        orders: bucketEntries.length
       });
     }
 
     return rows;
-  }, [filteredOrders, period, windowRange.durationDays, windowRange.start]);
+  }, [filteredEntries, period, windowRange.durationDays, windowRange.start]);
 
   const maxRevenue = useMemo(() => Math.max(1, ...trend.map((item) => item.revenue)), [trend]);
 
@@ -355,11 +439,16 @@ const SellerReportsPage = () => {
               <BarChart3 className="h-3.5 w-3.5" />
               Seller Reports
             </div>
-            <h1 className="font-display text-3xl text-mocha">Báo cáo kinh doanh</h1>
-            <p className="text-sm text-cocoa/70">
-              Theo dõi doanh thu, hiệu suất đơn và xu hướng sản phẩm theo thời gian.
+          <h1 className="font-display text-3xl text-mocha">Báo cáo kinh doanh</h1>
+          <p className="text-sm text-cocoa/70">
+            Theo dõi doanh thu, hiệu suất đơn và xu hướng sản phẩm theo thời gian.
+          </p>
+          {filtersActive ? (
+            <p className="text-xs text-cocoa/60">
+              Khi đang lọc, doanh thu và top sản phẩm chỉ tính trên các item khớp bộ lọc hiện tại.
             </p>
-          </div>
+          ) : null}
+        </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn-secondary btn-secondary--sm" onClick={handleExportCsv}>
               <Download className="h-4 w-4" />

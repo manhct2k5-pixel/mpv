@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eye, Save, ShieldCheck } from 'lucide-react';
 import { financeApi } from '../services/api.ts';
+import { ADMIN_DEMO_MODE } from '../services/adminDemo.ts';
 import { paymentMethodLabels, paymentStatusLabels } from '../constants/payment';
 import type { OrderSummary } from '../types/store';
 
@@ -81,7 +82,8 @@ const AdminOrdersPage = () => {
 
   const { data: orders = [], isLoading, isError } = useQuery<OrderSummary[]>({
     queryKey: ['admin', 'orders', 'monitor'],
-    queryFn: () => financeApi.admin.orders()
+    queryFn: () => financeApi.admin.orders(),
+    refetchInterval: 5_000
   });
 
   const updateOrderStatusMutation = useMutation({
@@ -167,7 +169,9 @@ const AdminOrdersPage = () => {
           <p className="admin-badge">Giám sát đơn hàng</p>
           <h1 className="text-2xl font-semibold text-[var(--admin-text)] sm:text-3xl">Theo dõi và can thiệp đơn hàng toàn hệ thống</h1>
           <p className="max-w-3xl text-sm text-[var(--admin-muted)]">
-            Kiểm soát đơn theo trạng thái vận hành, xác minh thanh toán và xử lý ngoại lệ trực tiếp trên cùng một màn hình.
+            {ADMIN_DEMO_MODE
+              ? 'Demo mode: thay đổi trạng thái và xác nhận thanh toán chỉ mô phỏng trên trình duyệt này. Các block khách hàng/timeline bên dưới là dữ liệu minh họa.'
+              : 'Kiểm soát đơn theo trạng thái vận hành, xác minh thanh toán và xử lý ngoại lệ trực tiếp trên cùng một màn hình.'}
           </p>
         </div>
       </section>
@@ -236,8 +240,8 @@ const AdminOrdersPage = () => {
                   return (
                     <tr key={order.id}>
                       <td>{order.orderNumber}</td>
-                      <td>{`Khách #${order.id}`}</td>
-                      <td>{`Seller #${(order.id % 7) + 1}`}</td>
+                      <td>{`Khách demo #${order.id}`}</td>
+                      <td>{`Shop demo #${(order.id % 7) + 1}`}</td>
                       <td>{formatCurrency(order.total)}</td>
                       <td>{`${paymentMethod} · ${paymentStatus}`}</td>
                       <td>
@@ -335,10 +339,10 @@ const AdminOrdersPage = () => {
         {selectedOrder ? (
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="space-y-3 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-surface-2)] p-4">
-              <p className="text-sm font-semibold text-[var(--admin-text)]">Thông tin khách hàng</p>
-              <p className="text-xs text-[var(--admin-muted)]">{`Khách #${selectedOrder.id}`}</p>
-              <p className="text-xs text-[var(--admin-muted)]">{`SĐT: 09${String(10000000 + selectedOrder.id).slice(-8)}`}</p>
-              <p className="text-xs text-[var(--admin-muted)]">Địa chỉ: 125 Nguyễn Trãi, Quận 1, TP.HCM</p>
+              <p className="text-sm font-semibold text-[var(--admin-text)]">Thông tin khách hàng minh họa</p>
+              <p className="text-xs text-[var(--admin-muted)]">{`Khách demo #${selectedOrder.id}`}</p>
+              <p className="text-xs text-[var(--admin-muted)]">{`SĐT demo: 09${String(10000000 + selectedOrder.id).slice(-8)}`}</p>
+              <p className="text-xs text-[var(--admin-muted)]">Địa chỉ demo: 125 Nguyễn Trãi, Quận 1, TP.HCM</p>
             </div>
 
             <div className="space-y-3 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-surface-2)] p-4">

@@ -1,23 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { financeApi, storeApi } from '../services/api.ts';
-import type { Order, OrderSummary } from '../types/store';
+import { financeApi, staffApi, storeApi } from '../services/api.ts';
+import type { Order, OrderSummary, StaffOrderWorkState, StaffQcState } from '../types/store';
 import { normalizeOrderStatus, orderStatusLabels } from '../utils/orderStatus.ts';
 
-type QcState = {
-  checkQuantity: boolean;
-  checkModel: boolean;
-  checkVisual: boolean;
-  checkAccessories: boolean;
-  issueNote: string;
-  packageType: string;
-  weight: string;
-  dimensions: string;
-  packageNote: string;
-  status: 'pending' | 'passed' | 'failed' | 'packing' | 'packed';
-};
-
-const defaultQcState: QcState = {
+const defaultStaffQcState: StaffQcState = {
   checkQuantity: false,
   checkModel: false,
   checkVisual: false,
@@ -30,7 +17,7 @@ const defaultQcState: QcState = {
   status: 'pending'
 };
 
-const statusLabel: Record<QcState['status'], string> = {
+const statusLabel: Record<StaffQcState['status'], string> = {
   pending: 'Chờ QC',
   passed: 'QC đạt',
   failed: 'QC lỗi',
@@ -41,7 +28,6 @@ const statusLabel: Record<QcState['status'], string> = {
 const StaffQCPackingPage = () => {
   const queryClient = useQueryClient();
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
-  const [qcByOrder, setQcByOrder] = useState<Record<number, QcState>>({});
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const { data: profile } = useQuery({
@@ -61,11 +47,26 @@ const StaffQCPackingPage = () => {
     enabled: isAdmin || staffId != null
   });
 
+  const { data: workStates = [] } = useQuery({
+    queryKey: ['staff-work-states'],
+    queryFn: staffApi.orderWorkStates,
+    enabled: isAdmin || staffId != null,
+    refetchInterval: 5_000
+  });
+
+  const qcByOrder = useMemo(() => {
+    const next: Record<number, StaffQcState> = {};
+    workStates.forEach((state) => {
+      next[state.orderId] = state.qc;
+    });
+    return next;
+  }, [workStates]);
+
   const candidateOrders = useMemo(
     () =>
       orders.filter((order) => {
         const status = normalizeOrderStatus(order.status);
-        return status === 'confirmed' || status === 'packing';
+        return status === 'confirmed';
       }),
     [orders]
   );
@@ -87,23 +88,43 @@ const StaffQCPackingPage = () => {
     }
   });
 
+  const updateQcMutation = useMutation({
+    mutationFn: (payload: { orderId: number; patch: Partial<StaffQcState> }) =>
+      staffApi.updateOrderWorkState(payload.orderId, { qc: payload.patch }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<StaffOrderWorkState[]>(['staff-work-states'], (current = []) => {
+        const exists = current.some((state) => state.orderId === updated.orderId);
+        return exists
+          ? current.map((state) => (state.orderId === updated.orderId ? updated : state))
+          : [...current, updated];
+      });
+      queryClient.invalidateQueries({ queryKey: ['staff-work-states'] });
+    },
+    onError: (error: any) => {
+      setStatusMessage(error.response?.data?.message || error.response?.data?.error || 'Không lưu được QC vào backend.');
+    }
+  });
+
   const selectedOrder = useMemo(
     () => candidateOrders.find((order) => order.id === selectedOrderId) ?? null,
     [candidateOrders, selectedOrderId]
   );
 
-  const currentQc = selectedOrderId != null ? qcByOrder[selectedOrderId] ?? defaultQcState : defaultQcState;
+  const currentQc = selectedOrderId != null ? qcByOrder[selectedOrderId] ?? defaultStaffQcState : defaultStaffQcState;
   const isQcPassed = currentQc.checkQuantity && currentQc.checkModel && currentQc.checkVisual && currentQc.checkAccessories;
+  const isPackagingReady =
+    currentQc.packageType.trim() !== '' && currentQc.weight.trim() !== '' && currentQc.dimensions.trim() !== '';
+  const canConfirmPacked =
+    selectedOrder != null &&
+    normalizeOrderStatus(selectedOrder.status) === 'confirmed' &&
+    currentQc.status === 'passed' &&
+    isQcPassed &&
+    isPackagingReady &&
+    !updateStatusMutation.isPending;
 
-  const updateQcState = (patch: Partial<QcState>) => {
+  const updateQcState = (patch: Partial<StaffQcState>) => {
     if (selectedOrderId == null) return;
-    setQcByOrder((prev) => ({
-      ...prev,
-      [selectedOrderId]: {
-        ...(prev[selectedOrderId] ?? defaultQcState),
-        ...patch
-      }
-    }));
+    updateQcMutation.mutate({ orderId: selectedOrderId, patch });
   };
 
   const markQcPassed = () => {
@@ -141,12 +162,22 @@ const StaffQCPackingPage = () => {
       return;
     }
 
-    updateQcState({ status: 'packed' });
+    if (currentQc.status !== 'passed' || !isQcPassed) {
+      setStatusMessage(`Đơn ${selectedOrder.orderNumber} chưa hoàn tất bước QC đạt, chưa thể xác nhận đóng gói.`);
+      return;
+    }
+
+    if (!isPackagingReady) {
+      setStatusMessage(`Cần nhập đủ loại bao bì, cân nặng và kích thước trước khi xác nhận đóng gói.`);
+      return;
+    }
+
     setStatusMessage(null);
     updateStatusMutation.mutate(
       { id: selectedOrder.id, status: 'packing' },
       {
         onSuccess: () => {
+          updateQcState({ status: 'packed' });
           setStatusMessage(`Đã xác nhận đóng gói hoàn tất cho đơn ${selectedOrder.orderNumber}.`);
         }
       }
@@ -293,7 +324,7 @@ const StaffQCPackingPage = () => {
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" className="admin-action-button success" onClick={markQcPassed}>
+                <button type="button" className="admin-action-button success" disabled={!isQcPassed} onClick={markQcPassed}>
                   Xác nhận đạt QC
                 </button>
                 <button type="button" className="admin-action-button danger" onClick={markQcFailed}>
@@ -305,7 +336,7 @@ const StaffQCPackingPage = () => {
                 <button
                   type="button"
                   className="admin-inline-button"
-                  disabled={updateStatusMutation.isPending}
+                  disabled={!canConfirmPacked}
                   onClick={confirmPacked}
                 >
                   Xác nhận đã đóng gói
@@ -313,6 +344,9 @@ const StaffQCPackingPage = () => {
               </div>
 
               <p className="mt-2 text-xs text-[var(--admin-muted)]">Trạng thái hiện tại: {statusLabel[currentQc.status]}</p>
+              <p className="mt-1 text-xs text-[var(--admin-muted)]">
+                Checklist QC và ghi chú đóng gói được lưu vào database theo mã đơn hàng.
+              </p>
             </article>
           </div>
         ) : (

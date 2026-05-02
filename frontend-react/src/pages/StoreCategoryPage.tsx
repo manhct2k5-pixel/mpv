@@ -3,8 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
 import ProductCard from '../components/store/ProductCard';
-import { storeApi } from '../services/api.ts';
+import { financeApi, storeApi } from '../services/api.ts';
 import { useAuthStore } from '../store/auth.ts';
+import { isCustomerRole } from '../utils/access';
 
 const collectionStyles: Record<
   string,
@@ -77,6 +78,15 @@ const StoreCategoryPage = ({ slug: slugOverride }: StoreCategoryPageProps) => {
   const [maxPrice, setMaxPrice] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('newest');
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
+  const [wishlistMessage, setWishlistMessage] = useState<string | null>(null);
+
+  const { data: profile, isLoading: profileLoading } = useQuery({
+    queryKey: ['profile'],
+    queryFn: financeApi.me,
+    enabled: isAuthenticated,
+    retry: 1
+  });
+  const isCustomer = isCustomerRole(profile?.role);
 
   const { data: category, isLoading: isLoadingCategory } = useQuery({
     queryKey: ['store-category', safeSlug],
@@ -123,7 +133,7 @@ const StoreCategoryPage = ({ slug: slugOverride }: StoreCategoryPageProps) => {
   const { data: wishlist = [] } = useQuery({
     queryKey: ['store-wishlist'],
     queryFn: storeApi.wishlist,
-    enabled: isAuthenticated
+    enabled: isAuthenticated && isCustomer
   });
 
   const toggleWishlist = useMutation({
@@ -131,6 +141,7 @@ const StoreCategoryPage = ({ slug: slugOverride }: StoreCategoryPageProps) => {
       payload.remove ? storeApi.removeWishlist(payload.productId) : storeApi.addWishlist(payload.productId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['store-wishlist'] });
+      setWishlistMessage(null);
     }
   });
 
@@ -139,6 +150,14 @@ const StoreCategoryPage = ({ slug: slugOverride }: StoreCategoryPageProps) => {
   const handleToggleWishlist = (productId: number) => {
     if (!isAuthenticated) {
       navigate('/login');
+      return;
+    }
+    if (profileLoading) {
+      setWishlistMessage('Đang tải quyền tài khoản, vui lòng thử lại sau vài giây.');
+      return;
+    }
+    if (!isCustomer) {
+      setWishlistMessage('Wishlist chỉ dành cho tài khoản khách hàng.');
       return;
     }
     toggleWishlist.mutate({ productId, remove: wishlistIds.has(productId) });
@@ -310,6 +329,12 @@ const StoreCategoryPage = ({ slug: slugOverride }: StoreCategoryPageProps) => {
           ) : null}
         </div>
       </section>
+
+      {wishlistMessage ? (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-800 shadow-[0_12px_24px_rgba(148,163,184,0.08)]">
+          {wishlistMessage}
+        </div>
+      ) : null}
 
       <section className="space-y-6">
         <div className="flex items-end justify-between gap-4">

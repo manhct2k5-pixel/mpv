@@ -65,8 +65,8 @@ const SellerLayout = () => {
     items.push({ label: 'Vận hành / hỗ trợ', path: '/seller/van-hanh', icon: LifeBuoy });
     items.push({ label: 'Inbox ticket', path: '/seller/tickets', icon: MessageSquare });
 
-    if (isAdmin || isStaff) {
-      items.push({ label: 'Tạo đơn thủ công', path: '/seller/tao-don', icon: ClipboardPlus });
+    if (isAdmin) {
+      items.push({ label: 'Tạo đơn thủ công', path: '/admin/manual-order', icon: ClipboardPlus });
     }
 
     if (canManageCatalog) {
@@ -200,15 +200,15 @@ const SellerLayout = () => {
               );
             })}
 
-            {isAdmin && (
-              <Link
-                to="/admin"
-                className="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50/70 px-3 py-2.5 text-sm font-medium text-cocoa transition hover:border-rose-300 hover:bg-rose-100/60"
-              >
-                <Shield className="h-4 w-4" />
-                <span>Control Center</span>
-              </Link>
-            )}
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    className="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50/70 px-3 py-2.5 text-sm font-medium text-cocoa transition hover:border-rose-300 hover:bg-rose-100/60"
+                  >
+                    <Shield className="h-4 w-4" />
+                    <span>Trang chủ admin</span>
+                  </Link>
+                )}
           </nav>
 
           <div className="rounded-xl border border-rose-200 bg-white/90 p-3 text-xs text-cocoa/70">
@@ -277,6 +277,13 @@ const SellerLayout = () => {
                   </Link>
                 ) : null}
 
+                {isAdmin ? (
+                  <Link to="/admin" className="btn-secondary btn-secondary--sm whitespace-nowrap">
+                    <Shield className="h-4 w-4" />
+                    Trang chủ admin
+                  </Link>
+                ) : null}
+
                 <Link to="/tai-khoan" className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white/85 px-2.5 py-2 text-xs font-semibold text-cocoa">
                   <span className="grid h-6 w-6 place-items-center rounded-full bg-mocha text-[11px] text-cream">{avatarLabel}</span>
                   <span className="hidden sm:inline">{profile?.fullName ?? 'Tài khoản'}</span>
@@ -300,6 +307,11 @@ const SellerLayout = () => {
                   {item.label}
                 </NavLink>
               ))}
+              {isAdmin ? (
+                <Link to="/admin" className="rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-semibold text-cocoa">
+                  Trang chủ admin
+                </Link>
+              ) : null}
             </div>
           </header>
 

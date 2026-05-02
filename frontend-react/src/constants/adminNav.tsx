@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  ClipboardPlus,
   FileClock,
   HandCoins,
   Home,
@@ -52,6 +53,7 @@ export const adminNavItems: AdminNavItem[] = [
     sectionId: 'catalogConfig'
   },
   { key: 'orders', label: 'Giám sát đơn hàng', path: '/admin/orders', icon: Receipt, badgeKey: 'openOrders', sectionId: 'orders' },
+  { key: 'manual-order', label: 'Tạo đơn thủ công', path: '/admin/manual-order', icon: ClipboardPlus },
   { key: 'reports', label: 'Báo cáo', path: '/admin/reports', icon: BarChart3, sectionId: 'reports' },
   {
     key: 'refunds',

@@ -3,6 +3,8 @@ package com.wealthwallet.service;
 import com.wealthwallet.config.JwtUtils;
 import com.wealthwallet.domain.entity.UserAccount;
 import com.wealthwallet.dto.AdminCreateStaffRequest;
+import com.wealthwallet.dto.BusinessRequestCreateRequest;
+import com.wealthwallet.dto.ChangePasswordRequest;
 import com.wealthwallet.dto.LoginRequest;
 import com.wealthwallet.dto.RegisterRequest;
 import com.wealthwallet.dto.SellerRegisterRequest;
@@ -23,6 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 
 @Service
@@ -57,6 +60,13 @@ public class UserService implements UserDetailsService {
         }
     }
 
+    public void ensureStoreBuyer(UserAccount user) {
+        if (user != null && user.getRole() == UserAccount.Role.USER) {
+            return;
+        }
+        throw new ResponseStatusException(FORBIDDEN, "Chức năng mua hàng chỉ dành cho tài khoản khách hàng");
+    }
+
     @Transactional
     public UserAccount register(RegisterRequest request) {
         UserAccount user = createUser(
@@ -78,10 +88,13 @@ public class UserService implements UserDetailsService {
                 UserAccount.Role.USER,
                 request.monthlyIncome()
         );
-        seller.setStoreName(trimToNull(request.storeName()));
-        seller.setStorePhone(trimToNull(request.storePhone()));
-        seller.setStoreAddress(trimToNull(request.storeAddress()));
-        seller.setStoreDescription(trimToNull(request.storeDescription()));
+        applySellerStoreFields(
+                seller,
+                request.storeName(),
+                request.storePhone(),
+                request.storeAddress(),
+                request.storeDescription()
+        );
         seller.setBusinessRequestPending(true);
         seller.setBusinessRequestedAt(LocalDateTime.now());
         return userRepository.save(seller);
@@ -137,7 +150,17 @@ public class UserService implements UserDetailsService {
     }
 
     @Transactional
-    public UserAccount requestBusinessAccess() {
+    public void changePassword(ChangePasswordRequest request) {
+        UserAccount user = getCurrentUser();
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Mật khẩu hiện tại chưa đúng");
+        }
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public UserAccount requestBusinessAccess(BusinessRequestCreateRequest request) {
         UserAccount user = getCurrentUser();
         if (user.getRole() == UserAccount.Role.ADMIN
                 || user.getRole() == UserAccount.Role.SELLER
@@ -145,11 +168,17 @@ public class UserService implements UserDetailsService {
                 || user.getRole() == UserAccount.Role.WAREHOUSE) {
             return user;
         }
-        if (Boolean.TRUE.equals(user.getBusinessRequestPending())) {
-            return user;
+        applySellerStoreFields(
+                user,
+                request.storeName(),
+                request.storePhone(),
+                request.storeAddress(),
+                request.storeDescription()
+        );
+        if (!Boolean.TRUE.equals(user.getBusinessRequestPending())) {
+            user.setBusinessRequestPending(true);
+            user.setBusinessRequestedAt(LocalDateTime.now());
         }
-        user.setBusinessRequestPending(true);
-        user.setBusinessRequestedAt(LocalDateTime.now());
         return userRepository.save(user);
     }
 
@@ -203,6 +232,27 @@ public class UserService implements UserDetailsService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private void applySellerStoreFields(
+            UserAccount user,
+            String storeName,
+            String storePhone,
+            String storeAddress,
+            String storeDescription
+    ) {
+        user.setStoreName(requiredSellerField(storeName, "Tên cửa hàng là bắt buộc"));
+        user.setStorePhone(requiredSellerField(storePhone, "Số điện thoại cửa hàng là bắt buộc"));
+        user.setStoreAddress(requiredSellerField(storeAddress, "Địa chỉ lấy hàng là bắt buộc"));
+        user.setStoreDescription(requiredSellerField(storeDescription, "Mô tả cửa hàng là bắt buộc"));
+    }
+
+    private String requiredSellerField(String value, String message) {
+        String trimmed = trimToNull(value);
+        if (trimmed == null) {
+            throw new ResponseStatusException(BAD_REQUEST, message);
+        }
+        return trimmed;
     }
 
 }

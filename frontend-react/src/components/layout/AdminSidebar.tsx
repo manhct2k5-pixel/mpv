@@ -1,4 +1,4 @@
-import { LogOut, X } from 'lucide-react';
+import { LogOut, Store, X } from 'lucide-react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { adminBrandItem, adminNavItems } from '../../constants/adminNav';
 import type { AdminNavItem } from '../../constants/adminNav';
@@ -78,6 +78,10 @@ const AdminSidebarContent = ({
         </nav>
 
         <div className="mt-4 space-y-2">
+          <Link to="/seller" className="admin-sidebar-item admin-focus-ring" onClick={onNavigate}>
+            <Store className="h-5 w-5 shrink-0" />
+            {!collapsed ? <span className="truncate">Trang chủ seller</span> : null}
+          </Link>
           {!collapsed ? (
             <Link to="/admin/account" className="admin-sidebar-item admin-focus-ring" onClick={onNavigate}>
               <span className="truncate">Tài khoản admin</span>

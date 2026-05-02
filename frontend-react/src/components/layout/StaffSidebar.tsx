@@ -19,6 +19,7 @@ const getBadgeValue = (overview: StaffOverviewSignal, key?: string) => {
   if (key === 'handoverOrders') return overview.handoverOrders;
   if (key === 'openTickets') return overview.openTickets;
   if (key === 'openReturns') return overview.openReturns;
+  if (key === 'returnFocus') return overview.newReturns > 0 ? overview.newReturns : overview.openReturns;
   return null;
 };
 

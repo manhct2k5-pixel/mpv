@@ -114,6 +114,7 @@ public class OrderService {
                 .postalCode(request.postalCode())
                 .note(request.note())
                 .build();
+        validateCheckoutAddress(shippingAddress);
         order.setShippingAddress(shippingAddress);
 
         Order saved = orderRepository.save(order);
@@ -129,7 +130,7 @@ public class OrderService {
     @Transactional
     public OrderResponse createManualOrder(UserAccount creator, ManualOrderCreateRequest request) {
         if (!canCreateManualOrder(creator)) {
-            throw new ResponseStatusException(FORBIDDEN, "Chỉ admin hoặc nhân viên vận hành mới được tạo đơn");
+            throw new ResponseStatusException(FORBIDDEN, "Chỉ admin mới được tạo đơn thủ công");
         }
         UserAccount buyer = userAccountRepository.findByEmail(request.userEmail())
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "User not found"));
@@ -184,6 +185,7 @@ public class OrderService {
                 .postalCode(request.postalCode())
                 .note(request.note())
                 .build();
+        validateCheckoutAddress(shippingAddress);
         order.setShippingAddress(shippingAddress);
 
         Order saved = orderRepository.save(order);
@@ -202,9 +204,11 @@ public class OrderService {
         return mapOrder(saved);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<OrderSummaryResponse> listOrders(UserAccount user) {
-        return orderRepository.findByUserOrderByCreatedAtDesc(user).stream()
+        List<Order> orders = orderRepository.findByUserOrderByCreatedAtDesc(user);
+        applyAutoStatusTransitions(orders);
+        return orders.stream()
                 .map(order -> new OrderSummaryResponse(
                         order.getId(),
                         order.getOrderNumber(),
@@ -220,11 +224,12 @@ public class OrderService {
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public OrderResponse getOrder(UserAccount user, Long orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Order not found"));
         ensureCanViewOrder(user, order);
+        applyAutoStatusTransition(order);
         return mapOrder(order);
     }
 
@@ -232,9 +237,11 @@ public class OrderService {
     public OrderResponse updateStatus(UserAccount user, Long orderId, OrderStatusUpdateRequest request) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Order not found"));
+        ensureCanViewOrder(user, order);
+        applyAutoStatusTransition(order);
         ensureCanManageOrder(user, order);
         Order.Status nextStatus = parseStatus(request.status());
-        if (user.getRole() == UserAccount.Role.WAREHOUSE) {
+        if (isWarehouseSupportRole(user.getRole())) {
             ensureWarehouseCanUpdateStatus(nextStatus);
         }
         if (nextStatus == order.getStatus()) {
@@ -245,6 +252,9 @@ public class OrderService {
         }
 
         if (nextStatus == Order.Status.CANCELLED) {
+            if (user.getRole() == UserAccount.Role.SELLER && !isSellerEditableStage(order.getStatus())) {
+                throw new ResponseStatusException(BAD_REQUEST, "Seller chỉ được hủy đơn trước khi qua kho");
+            }
             return cancelWithSideEffects(order);
         }
 
@@ -271,8 +281,10 @@ public class OrderService {
     public OrderResponse confirmBankTransferPayment(UserAccount user, Long orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Order not found"));
+        ensureCanViewOrder(user, order);
+        applyAutoStatusTransition(order);
         ensureCanManageOrder(user, order);
-        if (user.getRole() == UserAccount.Role.WAREHOUSE) {
+        if (isWarehouseSupportRole(user.getRole())) {
             throw new ResponseStatusException(FORBIDDEN, "Kho không có quyền xác nhận thanh toán");
         }
 
@@ -326,6 +338,8 @@ public class OrderService {
     public OrderResponse updateOrder(UserAccount user, Long orderId, OrderUpdateRequest request) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Order not found"));
+        ensureCanViewOrder(user, order);
+        applyAutoStatusTransition(order);
         ensureCanEditOrder(user, order);
         ShippingAddress address = order.getShippingAddress();
         if (address == null) {
@@ -366,6 +380,7 @@ public class OrderService {
         if (request.notes() != null) {
             order.setNotes(trimToNull(request.notes()));
         }
+        validateEditableShippingAddress(address);
         order.setUpdatedAt(LocalDateTime.now());
         Order saved = orderRepository.save(order);
         return mapOrder(saved);
@@ -375,8 +390,22 @@ public class OrderService {
     public OrderResponse cancelOrder(UserAccount user, Long orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Order not found"));
+        ensureCanViewOrder(user, order);
+        applyAutoStatusTransition(order);
         ensureCanCancelOrder(user, order);
         return cancelWithSideEffects(order);
+    }
+
+    @Transactional
+    public List<Order> synchronizeAutoStatuses(List<Order> orders) {
+        applyAutoStatusTransitions(orders);
+        return orders;
+    }
+
+    @Transactional
+    public Order synchronizeAutoStatus(Order order) {
+        applyAutoStatusTransition(order);
+        return order;
     }
 
     private OrderResponse mapOrder(Order order) {
@@ -551,7 +580,10 @@ public class OrderService {
                 continue;
             }
             if (requested > stock) {
-                throw new ResponseStatusException(BAD_REQUEST, "Sản phẩm không đủ tồn kho");
+                if (stock <= 0) {
+                    throw new ResponseStatusException(BAD_REQUEST, "Biến thể bạn chọn hiện đã hết hàng");
+                }
+                throw new ResponseStatusException(BAD_REQUEST, "Chỉ còn " + stock + " sản phẩm trong kho");
             }
 
             variant.setStockQty(stock - requested);
@@ -591,13 +623,13 @@ public class OrderService {
     }
 
     private void ensureCanViewOrder(UserAccount user, Order order) {
-        if (user.getRole() == UserAccount.Role.ADMIN || user.getRole() == UserAccount.Role.WAREHOUSE) {
+        if (user.getRole() == UserAccount.Role.ADMIN || isWarehouseSupportRole(user.getRole())) {
             return;
         }
         if (order.getUser().getId().equals(user.getId())) {
             return;
         }
-        if (user.getRole() == UserAccount.Role.SELLER || user.getRole() == UserAccount.Role.STYLES) {
+        if (user.getRole() == UserAccount.Role.SELLER) {
             if (isOrderManagedBySeller(user, order)) {
                 return;
             }
@@ -606,12 +638,15 @@ public class OrderService {
     }
 
     private void ensureCanManageOrder(UserAccount user, Order order) {
-        if (user.getRole() == UserAccount.Role.ADMIN || user.getRole() == UserAccount.Role.WAREHOUSE) {
+        if (user.getRole() == UserAccount.Role.ADMIN || isWarehouseSupportRole(user.getRole())) {
             return;
         }
-        if (user.getRole() == UserAccount.Role.SELLER || user.getRole() == UserAccount.Role.STYLES) {
+        if (user.getRole() == UserAccount.Role.SELLER) {
             if (isOrderManagedBySeller(user, order)) {
-                return;
+                if (isSellerEditableStage(order.getStatus())) {
+                    return;
+                }
+                throw new ResponseStatusException(BAD_REQUEST, "Seller chỉ được cập nhật đơn trước khi qua kho");
             }
         }
         throw new ResponseStatusException(FORBIDDEN, "Bạn không có quyền cập nhật đơn hàng");
@@ -635,9 +670,12 @@ public class OrderService {
             }
             throw new ResponseStatusException(BAD_REQUEST, "Không thể cập nhật thông tin đơn hàng");
         }
-        if (user.getRole() == UserAccount.Role.SELLER || user.getRole() == UserAccount.Role.STYLES) {
+        if (user.getRole() == UserAccount.Role.SELLER) {
             if (isOrderManagedBySeller(user, order)) {
-                return;
+                if (isSellerEditableStage(order.getStatus())) {
+                    return;
+                }
+                throw new ResponseStatusException(BAD_REQUEST, "Seller chỉ được cập nhật đơn trước khi qua kho");
             }
         }
         throw new ResponseStatusException(FORBIDDEN, "Bạn không có quyền cập nhật đơn hàng");
@@ -654,11 +692,23 @@ public class OrderService {
             }
             throw new ResponseStatusException(BAD_REQUEST, "Không thể hủy đơn hàng");
         }
-        if ((user.getRole() == UserAccount.Role.SELLER || user.getRole() == UserAccount.Role.STYLES)
-                && isOrderManagedBySeller(user, order)) {
-            return;
+        if (user.getRole() == UserAccount.Role.SELLER && isOrderManagedBySeller(user, order)) {
+            if (isSellerEditableStage(order.getStatus())) {
+                return;
+            }
+            throw new ResponseStatusException(BAD_REQUEST, "Seller chỉ được hủy đơn trước khi qua kho");
         }
         throw new ResponseStatusException(FORBIDDEN, "Bạn không có quyền hủy đơn hàng");
+    }
+
+    private boolean isSellerEditableStage(Order.Status status) {
+        return status == Order.Status.PENDING
+                || status == Order.Status.PROCESSING
+                || status == Order.Status.CONFIRMED;
+    }
+
+    private boolean isWarehouseSupportRole(UserAccount.Role role) {
+        return role == UserAccount.Role.WAREHOUSE || role == UserAccount.Role.STYLES;
     }
 
     private boolean isOrderManagedBySeller(UserAccount user, Order order) {
@@ -675,7 +725,7 @@ public class OrderService {
                 .map(product -> product.getId())
                 .collect(Collectors.toSet());
         return order.getItems().stream()
-                .anyMatch(item -> item.getProductId() != null && sellerProductIds.contains(item.getProductId()));
+                .allMatch(item -> item.getProductId() != null && sellerProductIds.contains(item.getProductId()));
     }
 
     private void ensureSequentialStatusTransition(Order.Status current, Order.Status next) {
@@ -736,11 +786,45 @@ public class OrderService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    private void applyAutoStatusTransitions(List<Order> orders) {
+        // Order delivery must be confirmed by an authorized operator, not by a read-time timer.
+    }
+
+    private void applyAutoStatusTransition(Order order) {
+        // Kept for callers that previously synchronized demo automation.
+    }
+
+    private void validateCheckoutAddress(ShippingAddress address) {
+        address.setFullName(requireText(address.getFullName(), "Họ tên người nhận là bắt buộc"));
+        address.setPhone(requireText(address.getPhone(), "Số điện thoại là bắt buộc"));
+        address.setAddressLine1(requireText(address.getAddressLine1(), "Địa chỉ là bắt buộc"));
+        address.setWard(requireText(address.getWard(), "Phường/Xã là bắt buộc"));
+        address.setDistrict(requireText(address.getDistrict(), "Quận/Huyện là bắt buộc"));
+        address.setCity(requireText(address.getCity(), "Thành phố là bắt buộc"));
+        address.setProvince(requireText(address.getProvince(), "Tỉnh là bắt buộc"));
+    }
+
+    private void validateEditableShippingAddress(ShippingAddress address) {
+        address.setFullName(requireText(address.getFullName(), "Họ tên người nhận là bắt buộc"));
+        address.setPhone(requireText(address.getPhone(), "Số điện thoại là bắt buộc"));
+        address.setAddressLine1(requireText(address.getAddressLine1(), "Địa chỉ là bắt buộc"));
+        address.setCity(requireText(address.getCity(), "Thành phố là bắt buộc"));
+        address.setWard(trimToNull(address.getWard()));
+        address.setDistrict(trimToNull(address.getDistrict()));
+        address.setProvince(trimToNull(address.getProvince()));
+        address.setPostalCode(trimToNull(address.getPostalCode()));
+    }
+
+    private String requireText(String value, String message) {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            throw new ResponseStatusException(BAD_REQUEST, message);
+        }
+        return normalized;
+    }
+
     private boolean canCreateManualOrder(UserAccount creator) {
-        UserAccount.Role role = creator.getRole();
-        return role == UserAccount.Role.ADMIN
-                || role == UserAccount.Role.WAREHOUSE
-                || role == UserAccount.Role.STYLES;
+        return creator.getRole() == UserAccount.Role.ADMIN;
     }
 
     private String manualOrderCreatorLabel(UserAccount.Role role) {
@@ -748,7 +832,7 @@ public class OrderService {
             case ADMIN -> "Admin";
             case WAREHOUSE, STYLES -> "Nhân viên vận hành";
             case SELLER -> "Seller";
-            case USER -> "Nhân viên";
+            case USER -> "Khách hàng";
         };
     }
 

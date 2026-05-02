@@ -1,23 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Printer } from 'lucide-react';
-import { financeApi, storeApi } from '../services/api.ts';
-import type { Order, OrderSummary } from '../types/store';
+import { financeApi, staffApi, storeApi } from '../services/api.ts';
+import type { Order, OrderSummary, StaffOrderWorkState, StaffShippingDraft, StaffWaybillState } from '../types/store';
+import { normalizeOrderStatus, orderStatusLabels } from '../utils/orderStatus.ts';
 
-type ShippingDraft = {
-  carrier: string;
-  service: string;
-  fee: string;
-  eta: string;
-};
-
-type WaybillState = {
-  code: string;
-  createdAt: string;
-  connected: boolean;
-};
-
-const defaultDraft: ShippingDraft = {
+const defaultStaffShippingDraft: StaffShippingDraft = {
   carrier: 'GHN',
   service: 'Giao tiêu chuẩn',
   fee: '32000',
@@ -27,8 +15,6 @@ const defaultDraft: ShippingDraft = {
 const StaffShipmentPage = () => {
   const queryClient = useQueryClient();
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
-  const [shippingDraft, setShippingDraft] = useState<ShippingDraft>(defaultDraft);
-  const [waybillMap, setWaybillMap] = useState<Record<number, WaybillState>>({});
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const { data: profile } = useQuery({
@@ -48,8 +34,31 @@ const StaffShipmentPage = () => {
     enabled: isAdmin || staffId != null
   });
 
+  const { data: workStates = [] } = useQuery({
+    queryKey: ['staff-work-states'],
+    queryFn: staffApi.orderWorkStates,
+    enabled: isAdmin || staffId != null,
+    refetchInterval: 5_000
+  });
+
+  const shippingDraftByOrder = useMemo(() => {
+    const next: Record<number, StaffShippingDraft> = {};
+    workStates.forEach((state) => {
+      next[state.orderId] = state.shippingDraft;
+    });
+    return next;
+  }, [workStates]);
+
+  const waybillMap = useMemo(() => {
+    const next: Record<number, StaffWaybillState> = {};
+    workStates.forEach((state) => {
+      if (state.waybill) next[state.orderId] = state.waybill;
+    });
+    return next;
+  }, [workStates]);
+
   const candidateOrders = useMemo(
-    () => orders.filter((order) => ['packing', 'shipped'].includes(order.status.toLowerCase())),
+    () => orders.filter((order) => normalizeOrderStatus(order.status) === 'packing'),
     [orders]
   );
 
@@ -70,29 +79,86 @@ const StaffShipmentPage = () => {
     }
   });
 
+  const updateWorkStateMutation = useMutation({
+    mutationFn: (payload: {
+      orderId: number;
+      shippingDraft?: Partial<StaffShippingDraft>;
+      waybill?: StaffWaybillState | null;
+      clearWaybill?: boolean;
+    }) => staffApi.updateOrderWorkState(payload.orderId, payload),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<StaffOrderWorkState[]>(['staff-work-states'], (current = []) => {
+        const exists = current.some((state) => state.orderId === updated.orderId);
+        return exists
+          ? current.map((state) => (state.orderId === updated.orderId ? updated : state))
+          : [...current, updated];
+      });
+      queryClient.invalidateQueries({ queryKey: ['staff-work-states'] });
+    },
+    onError: (error: any) => {
+      setStatusMessage(error.response?.data?.message || error.response?.data?.error || 'Không lưu được vận đơn vào backend.');
+    }
+  });
+
   const selectedOrder = useMemo(
     () => candidateOrders.find((order) => order.id === selectedOrderId) ?? null,
     [candidateOrders, selectedOrderId]
   );
 
+  const activeDraft = selectedOrderId != null ? shippingDraftByOrder[selectedOrderId] ?? defaultStaffShippingDraft : defaultStaffShippingDraft;
   const activeWaybill = selectedOrderId != null ? waybillMap[selectedOrderId] : null;
+  const selectedOrderStatus = normalizeOrderStatus(selectedOrder?.status);
+  const isDraftReady =
+    activeDraft.carrier.trim() !== '' &&
+    activeDraft.service.trim() !== '' &&
+    activeDraft.fee.trim() !== '' &&
+    activeDraft.eta.trim() !== '';
+  const canConfirmHandover = selectedOrderStatus === 'packing' && activeWaybill != null;
+
+  const updateDraft = (patch: Partial<StaffShippingDraft>) => {
+    if (selectedOrderId == null) return;
+    updateWorkStateMutation.mutate({ orderId: selectedOrderId, shippingDraft: patch });
+  };
 
   const createWaybill = () => {
     if (selectedOrder == null) return;
+    const currentStatus = normalizeOrderStatus(selectedOrder.status);
+    if (currentStatus !== 'packing') {
+      const label = currentStatus ? orderStatusLabels[currentStatus] : selectedOrder.status;
+      setStatusMessage(`Đơn ${selectedOrder.orderNumber} đang ở trạng thái "${label}", chưa thể tạo vận đơn.`);
+      return;
+    }
+    if (!isDraftReady) {
+      setStatusMessage('Cần nhập đủ đơn vị vận chuyển, dịch vụ, phí và ETA trước khi tạo vận đơn.');
+      return;
+    }
     const code = `VD-${selectedOrder.id}-${Date.now().toString().slice(-6)}`;
-    setWaybillMap((prev) => ({
-      ...prev,
-      [selectedOrder.id]: {
-        code,
-        connected: true,
-        createdAt: new Date().toISOString()
-      }
-    }));
+    const nextWaybill: StaffWaybillState = {
+      ...activeDraft,
+      code,
+      connected: true,
+      createdAt: new Date().toISOString()
+    };
+    updateWorkStateMutation.mutate({ orderId: selectedOrder.id, waybill: nextWaybill });
     setStatusMessage(`Đã tạo vận đơn ${code} cho đơn ${selectedOrder.orderNumber}.`);
   };
 
   const confirmHandover = () => {
     if (selectedOrder == null) return;
+    const currentStatus = normalizeOrderStatus(selectedOrder.status);
+    if (currentStatus === 'shipped') {
+      setStatusMessage(`Đơn ${selectedOrder.orderNumber} đã được bàn giao vận chuyển trước đó.`);
+      return;
+    }
+    if (currentStatus !== 'packing') {
+      const label = currentStatus ? orderStatusLabels[currentStatus] : selectedOrder.status;
+      setStatusMessage(`Đơn ${selectedOrder.orderNumber} đang ở trạng thái "${label}", chưa thể bàn giao vận chuyển.`);
+      return;
+    }
+    if (!activeWaybill) {
+      setStatusMessage(`Cần tạo vận đơn cho đơn ${selectedOrder.orderNumber} trước khi xác nhận bàn giao.`);
+      return;
+    }
     setStatusMessage(null);
     updateStatusMutation.mutate(
       { id: selectedOrder.id, status: 'shipped' },
@@ -106,11 +172,7 @@ const StaffShipmentPage = () => {
 
   const cancelWaybill = () => {
     if (selectedOrder == null) return;
-    setWaybillMap((prev) => {
-      const next = { ...prev };
-      delete next[selectedOrder.id];
-      return next;
-    });
+    updateWorkStateMutation.mutate({ orderId: selectedOrder.id, clearWaybill: true });
     setStatusMessage(`Đã hủy vận đơn cho đơn ${selectedOrder.orderNumber}.`);
   };
 
@@ -151,7 +213,7 @@ const StaffShipmentPage = () => {
               </button>
             ))}
             {candidateOrders.length === 0 ? (
-              <p className="text-sm text-[var(--admin-muted)]">Không có đơn chờ bàn giao vận chuyển.</p>
+              <p className="text-sm text-[var(--admin-muted)]">Không có đơn ở bước chờ tạo vận đơn.</p>
             ) : null}
           </div>
         ) : null}
@@ -178,26 +240,26 @@ const StaffShipmentPage = () => {
               <p className="text-sm font-semibold text-[var(--admin-text)]">Thông tin kiện hàng</p>
               <div className="mt-2 space-y-2">
                 <input
-                  value={shippingDraft.carrier}
-                  onChange={(event) => setShippingDraft((prev) => ({ ...prev, carrier: event.target.value }))}
+                  value={activeDraft.carrier}
+                  onChange={(event) => updateDraft({ carrier: event.target.value })}
                   className="admin-input"
                   placeholder="Đơn vị vận chuyển"
                 />
                 <input
-                  value={shippingDraft.service}
-                  onChange={(event) => setShippingDraft((prev) => ({ ...prev, service: event.target.value }))}
+                  value={activeDraft.service}
+                  onChange={(event) => updateDraft({ service: event.target.value })}
                   className="admin-input"
                   placeholder="Loại giao hàng"
                 />
                 <input
-                  value={shippingDraft.fee}
-                  onChange={(event) => setShippingDraft((prev) => ({ ...prev, fee: event.target.value }))}
+                  value={activeDraft.fee}
+                  onChange={(event) => updateDraft({ fee: event.target.value })}
                   className="admin-input"
                   placeholder="Phí vận chuyển"
                 />
                 <input
-                  value={shippingDraft.eta}
-                  onChange={(event) => setShippingDraft((prev) => ({ ...prev, eta: event.target.value }))}
+                  value={activeDraft.eta}
+                  onChange={(event) => updateDraft({ eta: event.target.value })}
                   className="admin-input"
                   placeholder="Dự kiến giao"
                 />
@@ -210,6 +272,8 @@ const StaffShipmentPage = () => {
                 <div className="mt-2 space-y-1 text-xs text-[var(--admin-muted)]">
                   <p>Mã vận đơn: {activeWaybill.code}</p>
                   <p>Kết nối hãng: {activeWaybill.connected ? 'Thành công' : 'Lỗi kết nối'}</p>
+                  <p>Dịch vụ: {activeWaybill.carrier} • {activeWaybill.service}</p>
+                  <p>Phí / ETA: {activeWaybill.fee} đ • {activeWaybill.eta}</p>
                   <p>Thời gian tạo: {new Date(activeWaybill.createdAt).toLocaleString('vi-VN')}</p>
                 </div>
               ) : (
@@ -217,7 +281,7 @@ const StaffShipmentPage = () => {
               )}
 
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" className="admin-action-button success" onClick={createWaybill}>
+                <button type="button" className="admin-action-button success" disabled={!isDraftReady} onClick={createWaybill}>
                   Tạo vận đơn
                 </button>
                 <button
@@ -231,7 +295,7 @@ const StaffShipmentPage = () => {
                 <button
                   type="button"
                   className="admin-inline-button"
-                  disabled={updateStatusMutation.isPending}
+                  disabled={updateStatusMutation.isPending || !canConfirmHandover}
                   onClick={confirmHandover}
                 >
                   Xác nhận bàn giao
@@ -240,6 +304,9 @@ const StaffShipmentPage = () => {
                   Hủy vận đơn
                 </button>
               </div>
+              <p className="mt-2 text-xs text-[var(--admin-muted)]">
+                Mã vận đơn được lưu vào database và dùng lại ở timeline trạng thái.
+              </p>
             </article>
           </div>
         ) : (

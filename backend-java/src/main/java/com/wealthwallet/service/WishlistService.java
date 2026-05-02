@@ -65,7 +65,8 @@ public class WishlistService {
                 pickPrimaryImage(product),
                 product.getFeatured(),
                 product.getAverageRating(),
-                product.getReviewCount()
+                product.getReviewCount(),
+                totalStock(product)
         );
     }
 
@@ -78,5 +79,15 @@ public class WishlistService {
                 .filter(url -> url != null && !url.isBlank())
                 .findFirst()
                 .orElse(null);
+    }
+
+    private Integer totalStock(Product product) {
+        if (product.getVariants() == null || product.getVariants().isEmpty()) {
+            return 0;
+        }
+        return product.getVariants().stream()
+                .map(ProductVariant::getStockQty)
+                .filter(stock -> stock != null && stock > 0)
+                .reduce(0, Integer::sum);
     }
 }

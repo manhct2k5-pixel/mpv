@@ -34,22 +34,25 @@ const OrderDetailPage = () => {
     enabled: isAuthenticated
   });
 
-  const { data: order, isLoading } = useQuery({
+  const { data: order, isLoading, isError } = useQuery({
     queryKey: ['store-order', orderId],
     queryFn: () => storeApi.order(orderId),
-    enabled: isAuthenticated && Number.isFinite(orderId)
+    enabled: isAuthenticated && Number.isFinite(orderId),
+    refetchInterval: 15_000
   });
 
   const rawRole = (profile?.role ?? '').toLowerCase();
   const role = rawRole === 'styles' ? 'warehouse' : rawRole;
   const isCustomer = role === 'user';
   const isWarehouse = role === 'warehouse';
-  const canManageStatus = role === 'admin' || role === 'seller' || isWarehouse;
+  const sellerCanManageOrderFlow = role === 'seller' && ['pending', 'processing', 'confirmed'].includes(order?.status?.toLowerCase() ?? '');
+  const canManageStatus = role === 'admin' || sellerCanManageOrderFlow || isWarehouse;
 
   const [editing, setEditing] = useState(false);
   const [reviewForms, setReviewForms] = useState<Record<number, { rating: number; comment: string }>>({});
   const [reviewStatusMessages, setReviewStatusMessages] = useState<Record<number, string>>({});
   const [reviewedItems, setReviewedItems] = useState<Record<number, boolean>>({});
+  const [actionMessage, setActionMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [formData, setFormData] = useState({
     fullName: '',
     phone: '',
@@ -87,14 +90,41 @@ const OrderDetailPage = () => {
       queryClient.setQueryData(['store-order', orderId], data);
       queryClient.invalidateQueries({ queryKey: ['store-orders'] });
       queryClient.invalidateQueries({ queryKey: ['seller-orders'] });
+      setActionMessage({ tone: 'success', text: 'Đã cập nhật trạng thái đơn hàng.' });
+    },
+    onError: (error: any) => {
+      setActionMessage({
+        tone: 'error',
+        text: error.response?.data?.message ?? 'Không thể cập nhật trạng thái đơn hàng.'
+      });
     }
   });
 
   const updateOrderMutation = useMutation({
-    mutationFn: () => storeApi.updateOrder(orderId, formData),
+    mutationFn: () => {
+      const missingFields = [
+        !formData.fullName.trim() ? 'họ và tên' : null,
+        !formData.phone.trim() ? 'số điện thoại' : null,
+        !formData.addressLine1.trim() ? 'địa chỉ' : null,
+        !formData.city.trim() ? 'thành phố' : null
+      ].filter(Boolean);
+      const validationMessage =
+        missingFields.length > 0 ? `Vui lòng nhập đủ ${missingFields.join(', ')} trước khi lưu.` : null;
+      if (validationMessage) {
+        throw new Error(validationMessage);
+      }
+      return storeApi.updateOrder(orderId, formData);
+    },
     onSuccess: (data) => {
       queryClient.setQueryData(['store-order', orderId], data);
       setEditing(false);
+      setActionMessage({ tone: 'success', text: 'Đã lưu thông tin giao hàng.' });
+    },
+    onError: (error: any) => {
+      setActionMessage({
+        tone: 'error',
+        text: error.message || error.response?.data?.message || 'Không thể lưu thông tin giao hàng.'
+      });
     }
   });
 
@@ -104,6 +134,13 @@ const OrderDetailPage = () => {
       queryClient.setQueryData(['store-order', orderId], data);
       queryClient.invalidateQueries({ queryKey: ['store-orders'] });
       queryClient.invalidateQueries({ queryKey: ['seller-orders'] });
+      setActionMessage({ tone: 'success', text: 'Đã xác nhận thanh toán cho đơn hàng.' });
+    },
+    onError: (error: any) => {
+      setActionMessage({
+        tone: 'error',
+        text: error.response?.data?.message ?? 'Không thể xác nhận thanh toán.'
+      });
     }
   });
 
@@ -113,6 +150,13 @@ const OrderDetailPage = () => {
       queryClient.invalidateQueries({ queryKey: ['store-order', orderId] });
       queryClient.invalidateQueries({ queryKey: ['store-orders'] });
       queryClient.invalidateQueries({ queryKey: ['seller-orders'] });
+      setActionMessage({ tone: 'success', text: 'Đơn hàng đã được hủy.' });
+    },
+    onError: (error: any) => {
+      setActionMessage({
+        tone: 'error',
+        text: error.response?.data?.message ?? 'Không thể hủy đơn hàng.'
+      });
     }
   });
 
@@ -177,9 +221,11 @@ const OrderDetailPage = () => {
     if (nextStatus) {
       options.push(nextStatus);
     }
-    options.push('cancelled');
+    if (role !== 'seller' || ['pending', 'processing', 'confirmed'].includes(currentStatus)) {
+      options.push('cancelled');
+    }
     return Array.from(new Set(options));
-  }, [isWarehouse, order]);
+  }, [isWarehouse, order, role]);
 
   const formatPrice = (value?: number | null) =>
     value != null ? `${value.toLocaleString('vi-VN')} đ` : '--';
@@ -194,10 +240,21 @@ const OrderDetailPage = () => {
     );
   }
 
-  if (isLoading || !order) {
+  if (isLoading) {
     return (
       <div className="rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
         Đang tải đơn hàng...
+      </div>
+    );
+  }
+
+  if (isError || !order) {
+    return (
+      <div className="space-y-4 rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
+        <p>Không tải được đơn hàng hoặc bạn không có quyền xem đơn này.</p>
+        <Link to="/don-hang" className="btn-secondary !border-rose-200/80 !bg-white/90">
+          Quay lại danh sách đơn
+        </Link>
       </div>
     );
   }
@@ -206,6 +263,9 @@ const OrderDetailPage = () => {
   const normalizedPaymentMethod = order.paymentMethod.toLowerCase();
   const normalizedPaymentStatus = order.paymentStatus.toLowerCase();
   const isBankTransfer = normalizedPaymentMethod === 'bank_transfer';
+  const customerCanEditOrder = isCustomer && ['pending', 'processing', 'confirmed'].includes(normalizedStatus);
+  const sellerCanAdjustOrder = role === 'seller' && ['pending', 'processing', 'confirmed'].includes(normalizedStatus);
+  const canEditOrder = role === 'admin' || sellerCanAdjustOrder || customerCanEditOrder;
   const canConfirmPayment =
     canManageStatus &&
     !isWarehouse &&
@@ -217,8 +277,14 @@ const OrderDetailPage = () => {
     normalizedStatus === 'packing' &&
     isBankTransfer &&
     normalizedPaymentStatus !== 'paid';
-  const canCancelOrder = !isWarehouse && normalizedStatus !== 'cancelled' && normalizedStatus !== 'delivered';
+  const canCancelOrder =
+    normalizedStatus !== 'cancelled' &&
+    normalizedStatus !== 'delivered' &&
+    (role === 'admin' || sellerCanAdjustOrder || customerCanEditOrder);
   const canReviewProducts = isCustomer && normalizedStatus === 'delivered';
+  const customerSupportTab = normalizedStatus === 'delivered' ? 'returns' : 'tickets';
+  const customerSupportLabel =
+    normalizedStatus === 'delivered' ? 'Hoàn trả hàng' : 'Liên hệ hỗ trợ đơn hàng';
   const statusLabel = orderStatusLabels[normalizedStatus] ?? order.status;
   const paymentMethodLabel = paymentMethodLabels[normalizedPaymentMethod] ?? order.paymentMethod;
   const paymentStatusLabel = paymentStatusLabels[normalizedPaymentStatus] ?? order.paymentStatus;
@@ -295,25 +361,36 @@ const OrderDetailPage = () => {
                     >
                       <p className="text-xs font-semibold uppercase tracking-wide text-cocoa/65">Đánh giá sản phẩm</p>
                       <div className="flex flex-wrap items-center gap-2">
-                        <select
-                          value={reviewForms[item.id]?.rating ?? 5}
-                          onChange={(event) =>
-                            setReviewForms((prev) => ({
-                              ...prev,
-                              [item.id]: {
-                                rating: Number(event.target.value),
-                                comment: prev[item.id]?.comment ?? ''
-                              }
-                            }))
-                          }
-                          className="rounded-xl border border-rose-200/80 bg-white/90 px-3 py-1.5 text-xs font-semibold text-cocoa"
-                        >
-                          {[5, 4, 3, 2, 1].map((star) => (
-                            <option key={star} value={star}>
-                              {star} sao
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((star) => {
+                            const active = star <= (reviewForms[item.id]?.rating ?? 5);
+                            return (
+                              <button
+                                key={star}
+                                type="button"
+                                onClick={() =>
+                                  setReviewForms((prev) => ({
+                                    ...prev,
+                                    [item.id]: { rating: star, comment: prev[item.id]?.comment ?? '' }
+                                  }))
+                                }
+                                className="p-0.5 transition hover:scale-110"
+                                aria-label={`${star} sao`}
+                              >
+                                <svg
+                                  viewBox="0 0 20 20"
+                                  className={`h-5 w-5 transition ${active ? 'fill-amber-400 text-amber-400' : 'fill-rose-100 text-rose-200'}`}
+                                  fill="currentColor"
+                                >
+                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                              </button>
+                            );
+                          })}
+                          <span className="ml-1 text-xs font-semibold text-cocoa/70">
+                            {reviewForms[item.id]?.rating ?? 5}/5
+                          </span>
+                        </div>
                         <button
                           type="submit"
                           className="btn-secondary btn-secondary--sm !border-rose-200/80 !bg-white/90"
@@ -413,11 +490,25 @@ const OrderDetailPage = () => {
               <span>Tổng cộng</span>
               <span>{formatPrice(order.total)}</span>
             </div>
+            {actionMessage ? (
+              <div
+                className={`rounded-2xl border px-4 py-3 text-sm ${
+                  actionMessage.tone === 'error'
+                    ? 'border-rose-200 bg-rose-50/90 text-rose-700'
+                    : 'border-emerald-200 bg-emerald-50/90 text-emerald-700'
+                }`}
+              >
+                {actionMessage.text}
+              </div>
+            ) : null}
             {canConfirmPayment && (
               <button
                 type="button"
                 className="btn-primary w-full"
-                onClick={() => confirmPaymentMutation.mutate()}
+                onClick={() => {
+                  setActionMessage(null);
+                  confirmPaymentMutation.mutate();
+                }}
                 disabled={confirmPaymentMutation.isPending}
               >
                 {confirmPaymentMutation.isPending ? 'Đang xác nhận...' : 'Xác nhận đã thanh toán'}
@@ -427,7 +518,10 @@ const OrderDetailPage = () => {
               <button
                 type="button"
                 className="btn-secondary w-full !border-rose-200/80 !bg-white/90"
-                onClick={() => cancelMutation.mutate()}
+                onClick={() => {
+                  setActionMessage(null);
+                  cancelMutation.mutate();
+                }}
                 disabled={cancelMutation.isPending}
               >
                 {cancelMutation.isPending ? 'Đang hủy...' : 'Hủy đơn hàng'}
@@ -435,10 +529,10 @@ const OrderDetailPage = () => {
             )}
             {isCustomer && (
               <Link
-                to={`/ho-tro/yeu-cau?tab=returns&orderId=${order.id}`}
+                to={`/ho-tro/yeu-cau?tab=${customerSupportTab}&orderId=${order.id}`}
                 className="btn-secondary w-full !border-rose-200/80 !bg-white/90 text-center"
               >
-                Tạo yêu cầu hỗ trợ / đổi trả
+                {customerSupportLabel}
               </Link>
             )}
           </div>
@@ -447,19 +541,25 @@ const OrderDetailPage = () => {
             <div className="space-y-2 rounded-3xl border border-rose-200/70 bg-white/90 p-5 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-cocoa">Địa chỉ giao hàng</h2>
-                <button
-                  type="button"
-                  className="btn-secondary btn-secondary--sm !border-rose-200/80 !bg-white/90"
-                  onClick={() => setEditing(!editing)}
-                >
-                  {editing ? 'Đóng' : 'Chỉnh sửa'}
-                </button>
+                {canEditOrder ? (
+                  <button
+                    type="button"
+                    className="btn-secondary btn-secondary--sm !border-rose-200/80 !bg-white/90"
+                    onClick={() => {
+                      setActionMessage(null);
+                      setEditing(!editing);
+                    }}
+                  >
+                    {editing ? 'Đóng' : 'Chỉnh sửa'}
+                  </button>
+                ) : null}
               </div>
 
               {editing ? (
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
+                    setActionMessage(null);
                     updateOrderMutation.mutate();
                   }}
                   className="space-y-3"
@@ -468,18 +568,21 @@ const OrderDetailPage = () => {
                     value={formData.fullName}
                     onChange={(event) => setFormData((prev) => ({ ...prev, fullName: event.target.value }))}
                     placeholder="Họ và tên"
+                    required
                     className="w-full rounded-xl border border-rose-200/80 bg-rose-50/50 px-3 py-2 text-xs text-cocoa outline-none focus:border-rose-400"
                   />
                   <input
                     value={formData.phone}
                     onChange={(event) => setFormData((prev) => ({ ...prev, phone: event.target.value }))}
                     placeholder="Số điện thoại"
+                    required
                     className="w-full rounded-xl border border-rose-200/80 bg-rose-50/50 px-3 py-2 text-xs text-cocoa outline-none focus:border-rose-400"
                   />
                   <input
                     value={formData.addressLine1}
                     onChange={(event) => setFormData((prev) => ({ ...prev, addressLine1: event.target.value }))}
                     placeholder="Địa chỉ"
+                    required
                     className="w-full rounded-xl border border-rose-200/80 bg-rose-50/50 px-3 py-2 text-xs text-cocoa outline-none focus:border-rose-400"
                   />
                   <input
@@ -507,6 +610,7 @@ const OrderDetailPage = () => {
                       value={formData.city}
                       onChange={(event) => setFormData((prev) => ({ ...prev, city: event.target.value }))}
                       placeholder="Thành phố"
+                      required
                       className="w-full rounded-xl border border-rose-200/80 bg-rose-50/50 px-3 py-2 text-xs text-cocoa outline-none focus:border-rose-400"
                     />
                     <input

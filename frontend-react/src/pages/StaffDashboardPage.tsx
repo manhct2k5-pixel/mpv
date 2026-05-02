@@ -2,9 +2,24 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { financeApi, storeApi } from '../services/api.ts';
-import type { OrderSummary, StoreMessagePartner } from '../types/store';
+import type { OrderSummary, ReturnRequest, SupportTicket } from '../types/store';
+import { countOpenReturnRequests, countOpenSupportTickets, getStaffOverview } from '../utils/staffOverview.ts';
 
 const formatDate = (value: string) => new Date(value).toLocaleString('vi-VN');
+
+const ticketStatusLabel: Record<SupportTicket['status'], string> = {
+  new: 'Mới tạo',
+  processing: 'Đang xử lý',
+  waiting: 'Chờ phản hồi',
+  resolved: 'Đã giải quyết',
+  closed: 'Đã đóng'
+};
+
+const ticketPriorityLabel: Record<SupportTicket['priority'], string> = {
+  high: 'Cao',
+  medium: 'Trung bình',
+  low: 'Thấp'
+};
 
 const StaffDashboardPage = () => {
   const { data: profile } = useQuery({
@@ -24,24 +39,30 @@ const StaffDashboardPage = () => {
     enabled: isAdmin || staffId != null
   });
 
-  const { data: partners = [] } = useQuery<StoreMessagePartner[]>({
-    queryKey: ['staff-dashboard-ticket-partners'],
-    queryFn: storeApi.messagePartners
+  const { data: tickets = [], isLoading: ticketsLoading, isError: ticketsError } = useQuery<SupportTicket[]>({
+    queryKey: ['staff-support-tickets'],
+    queryFn: () => storeApi.supportTickets(),
+    enabled: isAdmin || staffId != null
+  });
+
+  const { data: returnRequests = [] } = useQuery<ReturnRequest[]>({
+    queryKey: ['staff-return-requests'],
+    queryFn: () => storeApi.returnRequests(),
+    enabled: isAdmin || staffId != null
   });
 
   const stats = useMemo(() => {
-    const waiting = orders.filter((order) =>
-      ['pending', 'processing', 'confirmed'].includes(order.status.toLowerCase())
-    ).length;
-    const packing = orders.filter((order) => order.status.toLowerCase() === 'packing').length;
-    const handover = orders.filter((order) => order.status.toLowerCase() === 'packing').length;
-    const openIssues = orders.filter((order) => {
-      const status = order.status.toLowerCase();
-      const payment = order.paymentStatus.toLowerCase();
-      return status === 'cancelled' || payment === 'refunded';
-    }).length;
-    return { waiting, packing, handover, openIssues };
-  }, [orders]);
+    const overview = getStaffOverview(orders, {
+      openTickets: countOpenSupportTickets(tickets),
+      openReturns: countOpenReturnRequests(returnRequests)
+    });
+    return {
+      waiting: overview.pendingOrders,
+      packing: overview.packingOrders,
+      handover: overview.handoverOrders,
+      openIssues: overview.openReturns + overview.openTickets
+    };
+  }, [orders, returnRequests, tickets]);
 
   const priorityOrders = useMemo(() => {
     const now = Date.now();
@@ -59,14 +80,11 @@ const StaffDashboardPage = () => {
 
   const ticketRows = useMemo(
     () =>
-      partners.slice(0, 8).map((partner, index) => ({
-        id: `TK-${partner.id}`,
-        sender: partner.fullName,
-        type: index % 3 === 0 ? 'Chậm giao hàng' : index % 3 === 1 ? 'Sai sản phẩm' : 'Hỗ trợ khác',
-        priority: index % 2 === 0 ? 'Cao' : 'Trung bình',
-        status: index % 3 === 0 ? 'Mới tạo' : index % 3 === 1 ? 'Đang xử lý' : 'Chờ phản hồi'
-      })),
-    [partners]
+      tickets
+        .filter((ticket) => ticket.status === 'new' || ticket.status === 'processing' || ticket.status === 'waiting')
+        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+        .slice(0, 8),
+    [tickets]
   );
 
   const chartData = useMemo(() => {
@@ -83,13 +101,19 @@ const StaffDashboardPage = () => {
       const bucket = byKey.get(dayKey);
       if (!bucket) return;
       const status = order.status.toLowerCase();
-      const payment = order.paymentStatus.toLowerCase();
       if (status === 'delivered') bucket.processed += 1;
       if (status === 'cancelled') bucket.qcFailed += 1;
-      if (payment === 'refunded') bucket.returns += 1;
+    });
+    returnRequests.forEach((request) => {
+      const dayKey = new Date(request.createdAt).toISOString().slice(0, 10);
+      const bucket = byKey.get(dayKey);
+      if (!bucket) return;
+      if (request.status !== 'rejected') {
+        bucket.returns += 1;
+      }
     });
     return days;
-  }, [orders]);
+  }, [orders, returnRequests]);
 
   const chartMax = useMemo(
     () => Math.max(1, ...chartData.map((item) => Math.max(item.processed, item.qcFailed, item.returns))),
@@ -123,20 +147,20 @@ const StaffDashboardPage = () => {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <article className="admin-kpi-card">
-          <p className="text-xs text-[var(--admin-muted)]">Đơn chờ xử lý</p>
+          <p className="text-xs text-[var(--admin-muted)]">Đơn chờ xử lý nội bộ</p>
           <p className="text-2xl font-semibold text-[var(--admin-text)]">{stats.waiting}</p>
         </article>
         <article className="admin-kpi-card">
-          <p className="text-xs text-[var(--admin-muted)]">Đơn đang đóng gói</p>
+          <p className="text-xs text-[var(--admin-muted)]">Đơn chờ QC / đóng gói</p>
           <p className="text-2xl font-semibold text-[var(--admin-text)]">{stats.packing}</p>
         </article>
         <article className="admin-kpi-card">
-          <p className="text-xs text-[var(--admin-muted)]">Đơn chờ bàn giao</p>
+          <p className="text-xs text-[var(--admin-muted)]">Đơn chờ tạo vận đơn</p>
           <p className="text-2xl font-semibold text-[var(--admin-text)]">{stats.handover}</p>
         </article>
         <article className="admin-kpi-card">
           <p className="text-xs text-[var(--admin-muted)]">Ticket / đổi trả mở</p>
-          <p className="text-2xl font-semibold text-[var(--admin-text)]">{stats.openIssues + ticketRows.length}</p>
+          <p className="text-2xl font-semibold text-[var(--admin-text)]">{stats.openIssues}</p>
         </article>
       </section>
 
@@ -196,6 +220,8 @@ const StaffDashboardPage = () => {
               <p className="admin-section__description">Theo dõi ticket để phản hồi đúng SLA.</p>
             </div>
           </div>
+          {ticketsLoading ? <p className="text-sm text-[var(--admin-muted)]">Đang tải ticket...</p> : null}
+          {ticketsError ? <p className="text-sm text-rose-600">Không tải được ticket hỗ trợ.</p> : null}
           <div className="admin-table-wrap">
             <table className="admin-table min-w-full text-sm">
               <thead>
@@ -210,14 +236,14 @@ const StaffDashboardPage = () => {
               <tbody>
                 {ticketRows.map((ticket) => (
                   <tr key={ticket.id}>
-                    <td>{ticket.id}</td>
-                    <td>{ticket.sender}</td>
-                    <td>{ticket.type}</td>
-                    <td>{ticket.priority}</td>
-                    <td>{ticket.status}</td>
+                    <td>{ticket.ticketCode}</td>
+                    <td>{ticket.createdByName ?? '--'}</td>
+                    <td>{ticket.issueType}</td>
+                    <td>{ticketPriorityLabel[ticket.priority]}</td>
+                    <td>{ticketStatusLabel[ticket.status]}</td>
                   </tr>
                 ))}
-                {ticketRows.length === 0 ? (
+                {!ticketsLoading && !ticketsError && ticketRows.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="text-center text-sm text-[var(--admin-muted)]">
                       Chưa có ticket mới.

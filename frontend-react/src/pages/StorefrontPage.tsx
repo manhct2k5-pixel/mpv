@@ -248,12 +248,12 @@ const StorefrontPage = () => {
   };
 
   const handlePromoClick = () => {
-    navigate(isAuthenticated ? '/sale' : '/register');
+    navigate('/sale');
   };
 
   const handleShoppingFlowClick = () => {
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate('/gio-hang');
       return;
     }
     if (profileLoading) {

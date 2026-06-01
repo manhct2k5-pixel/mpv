@@ -14,6 +14,44 @@ start.bat
 - bật `APP_SEED_DEMO_DATA=true`
 - chạy frontend bằng Vite
 
+## Chạy kèm AI Stylist qua DS2API
+
+Nếu muốn AI Stylist dùng API trong `ds2api-main`, tạo file cấu hình DS2API trước:
+
+```bat
+copy ds2api-main\config.wealthwallet.example.json ds2api-main\config.json
+```
+
+Sau đó mở `ds2api-main\config.json`, giữ key `stylist-local-key` hoặc đổi theo ý bạn, rồi điền DeepSeek account/token thật trong phần `accounts`.
+
+Chạy full stack trên Windows:
+
+```bat
+cd /d "D:\Test - Copy (1)"
+start-ai-stylist.bat
+```
+
+Script này chạy:
+- DS2API API server ở `http://127.0.0.1:5001`
+- backend với profile `local,ds2api`
+- frontend ở `http://localhost:5173`
+
+Nếu chạy WSL/Linux:
+
+```bash
+cp ds2api-main/config.wealthwallet.example.json ds2api-main/config.json
+# sửa ds2api-main/config.json rồi chạy
+./start-wsl-ds2api.sh
+```
+
+Backend AI Stylist sẽ gọi DS2API qua:
+
+```text
+DS2API_BASE_URL=http://127.0.0.1:5001/v1
+DS2API_API_KEY=stylist-local-key
+STYLE_AI_MODEL=deepseek-v4-flash
+```
+
 ## Cách chạy trên WSL/Linux
 
 Nếu Windows báo `cmd.exe - Application Error (0xc0000142)` khi chạy `start.bat`, mở terminal WSL tại thư mục gốc project và chạy:
@@ -107,3 +145,4 @@ password
 - Nếu backend không lên, kiểm tra Java 17 và Maven đã cài chưa
 - Nếu frontend không lên, kiểm tra Node.js đã cài chưa
 - Catalog demo hiện có 42 ảnh local trong `frontend-react/public/product-images/`, backend sẽ ưu tiên các ảnh này khi bật `APP_SEED_DEMO_DATA=true`.
+- AI Stylist dùng DS2API khi backend chạy profile `ds2api` hoặc có các biến `STYLE_AI_BASE_URL`/`STYLE_AI_API_KEY`.

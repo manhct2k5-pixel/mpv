@@ -64,10 +64,22 @@ public class WishlistService {
                 product.getSalePrice(),
                 pickPrimaryImage(product),
                 product.getFeatured(),
+                product.getActive(),
                 product.getAverageRating(),
                 product.getReviewCount(),
-                totalStock(product)
+                totalStock(product),
+                product.getSeller() != null ? product.getSeller().getId() : null,
+                product.getSeller() != null ? trimToNull(product.getSeller().getFullName()) : null,
+                product.getSeller() != null ? trimToNull(product.getSeller().getStoreName()) : null
         );
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private String pickPrimaryImage(Product product) {

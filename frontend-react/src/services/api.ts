@@ -15,6 +15,7 @@ import {
   createAdminDemoCategory,
   createAdminDemoStaff,
   filterAdminDemoOrders,
+  releaseAdminDemoPaymentToSeller,
   refundAdminDemoOrder,
   toggleAdminDemoCategoryActive,
   updateAdminDemoCategory,
@@ -58,6 +59,8 @@ import {
   SellerProfile,
   SellerReview,
   VoucherValidationResult,
+  VoucherItem,
+  VoucherUpsertPayload,
   StaffOrderWorkState,
   StaffQcState,
   StaffShippingDraft,
@@ -78,6 +81,7 @@ const PUBLIC_CLIENT_ROUTES = [
   '/phu-kien',
   '/sale',
   '/lookbook',
+  '/gio-hang',
   '/gioi-thieu',
   '/login',
   '/register',
@@ -380,6 +384,13 @@ export const financeApi = {
       const orders = await fetchAdminOrdersBase();
       return confirmAdminDemoOrderPayment(orders, id);
     },
+    releasePaymentToSeller: async (id: number) => {
+      if (ADMIN_DEMO_MODE) {
+        const orders = await fetchAdminOrdersBase();
+        return releaseAdminDemoPaymentToSeller(orders, id);
+      }
+      return api.post<Order>(`/admin/orders/${id}/release-payment`).then((res) => res.data);
+    },
     refundOrder: async (id: number, reason: string) => {
       if (!ADMIN_DEMO_MODE) {
         return api.post<Order>(`/admin/orders/${id}/refund`, { reason }).then((res) => res.data);
@@ -477,6 +488,7 @@ export const storeApi = {
       .get<PaginatedResponse<StoreProductSummary>>('/store/products', { params })
       .then((res) => res.data),
   product: (slug: string) => api.get<StoreProductDetail>(`/store/products/${slug}`).then((res) => res.data),
+  managedProduct: (id: number) => api.get<StoreProductDetail>(`/store/products/manage/${id}`).then((res) => res.data),
   productReviews: (slug: string) =>
     api.get<ProductReviewList>(`/store/products/${slug}/reviews`).then((res) => res.data),
   createProductReview: (payload: {
@@ -667,6 +679,8 @@ export const storeApi = {
     api.post<StoreProductSummary>(`/store/wishlist/${productId}`).then((res) => res.data),
   removeWishlist: (productId: number) => api.delete(`/store/wishlist/${productId}`).then((res) => res.data),
   cart: () => api.get<Cart>('/store/cart').then((res) => res.data),
+  mergeGuestCart: (items: Array<{ variantId: number; quantity: number }>) =>
+    api.post<Cart>('/store/cart/merge', { items }).then((res) => res.data),
   addToCart: (payload: { variantId: number; quantity: number }) =>
     api.post<Cart>('/store/cart/items', payload).then((res) => res.data),
   updateCartItem: (id: number, quantity: number) =>
@@ -712,6 +726,24 @@ export const storeApi = {
   cancelOrder: (id: number) => api.delete(`/store/orders/${id}`).then((res) => res.data),
   orders: () => api.get<OrderSummary[]>('/store/orders').then((res) => asArray<OrderSummary>(res.data)),
   order: (id: number) => api.get<Order>(`/store/orders/${id}`).then((res) => res.data)
+};
+
+export const voucherApi = {
+  adminList: () =>
+    api.get<VoucherItem[]>('/admin/vouchers').then((res) => (Array.isArray(res.data) ? res.data : [])),
+  adminCreate: (payload: VoucherUpsertPayload) =>
+    api.post<VoucherItem>('/admin/vouchers', payload).then((res) => res.data),
+  adminUpdate: (id: number, payload: VoucherUpsertPayload) =>
+    api.put<VoucherItem>(`/admin/vouchers/${id}`, payload).then((res) => res.data),
+  adminDelete: (id: number) => api.delete(`/admin/vouchers/${id}`),
+
+  sellerList: () =>
+    api.get<VoucherItem[]>('/seller/vouchers').then((res) => (Array.isArray(res.data) ? res.data : [])),
+  sellerCreate: (payload: VoucherUpsertPayload) =>
+    api.post<VoucherItem>('/seller/vouchers', payload).then((res) => res.data),
+  sellerUpdate: (id: number, payload: VoucherUpsertPayload) =>
+    api.put<VoucherItem>(`/seller/vouchers/${id}`, payload).then((res) => res.data),
+  sellerDelete: (id: number) => api.delete(`/seller/vouchers/${id}`)
 };
 
 export const staffApi = {

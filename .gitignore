@@ -2,6 +2,9 @@
 # WealthWallet - Professional .gitignore
 # ============================================
 
+# AI Stylist service (tùy chọn, chứa config/token riêng — không đẩy lên repo)
+ds2api-main/
+
 # ============================================
 # Python
 # ============================================

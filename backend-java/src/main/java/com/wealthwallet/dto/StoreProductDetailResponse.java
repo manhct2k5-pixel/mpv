@@ -10,6 +10,7 @@ public record StoreProductDetailResponse(
         String gender,
         Double basePrice,
         Double salePrice,
+        Boolean active,
         Double averageRating,
         Integer reviewCount,
         String description,
@@ -17,6 +18,9 @@ public record StoreProductDetailResponse(
         String material,
         String fit,
         List<String> images,
-        List<StoreProductVariantResponse> variants
+        List<StoreProductVariantResponse> variants,
+        Long sellerId,
+        String sellerName,
+        String sellerStoreName
 ) {
 }

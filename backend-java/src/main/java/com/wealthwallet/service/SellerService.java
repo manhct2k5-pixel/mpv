@@ -5,6 +5,7 @@ import com.wealthwallet.domain.entity.Product;
 import com.wealthwallet.domain.entity.ProductReview;
 import com.wealthwallet.domain.entity.ProductVariant;
 import com.wealthwallet.domain.entity.SellerReviewState;
+import com.wealthwallet.domain.entity.ShippingAddress;
 import com.wealthwallet.domain.entity.UserAccount;
 import com.wealthwallet.dto.OrderSummaryResponse;
 import com.wealthwallet.dto.SellerProfileResponse;
@@ -24,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,6 +46,14 @@ public class SellerService {
     private final ProductReviewRepository productReviewRepository;
     private final SellerReviewStateRepository sellerReviewStateRepository;
     private final OrderService orderService;
+
+    private record OrderSellerSnapshot(
+            Long sellerId,
+            String sellerName,
+            String sellerStoreName,
+            List<Long> sellerIds
+    ) {
+    }
 
     @Transactional
     public SellerProfileResponse updateSellerProfile(UserAccount user, Long sellerId, SellerProfileUpdateRequest request) {
@@ -141,10 +152,17 @@ public class SellerService {
 
     @Transactional(readOnly = true)
     public List<StoreProductSummaryResponse> listSellerProducts(UserAccount user, Long sellerId) {
+        if (user.getRole() == UserAccount.Role.ADMIN
+                || user.getRole() == UserAccount.Role.WAREHOUSE
+                || user.getRole() == UserAccount.Role.STYLES) {
+            return productRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt")).stream()
+                    .map(this::mapProduct)
+                    .toList();
+        }
         UserAccount seller = userAccountRepository.findById(sellerId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Seller not found"));
         ensureSellerProfileAccess(user, seller);
-        return productRepository.findBySellerIdAndActiveTrueOrderByCreatedAtDesc(seller.getId()).stream()
+        return productRepository.findBySellerIdOrderByCreatedAtDesc(seller.getId()).stream()
                 .map(this::mapProduct)
                 .toList();
     }
@@ -158,8 +176,9 @@ public class SellerService {
             if (orderService != null) {
                 orderService.synchronizeAutoStatuses(orders);
             }
+            Map<Long, Product> productById = loadProductsByOrderItems(orders);
             return orders.stream()
-                    .map(this::mapOrderSummary)
+                    .map(order -> mapOrderSummary(order, productById))
                     .toList();
         }
         UserAccount seller = userAccountRepository.findById(sellerId)
@@ -175,9 +194,11 @@ public class SellerService {
         if (orderService != null) {
             orderService.synchronizeAutoStatuses(orders);
         }
+        Map<Long, Product> productById = products.stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
         return orders.stream()
                 .filter(order -> orderContainsOnlySellerProducts(order, sellerProductIds))
-                .map(this::mapOrderSummary)
+                .map(order -> mapOrderSummary(order, productById))
                 .toList();
     }
 
@@ -210,13 +231,19 @@ public class SellerService {
                 product.getSalePrice(),
                 pickPrimaryImage(product),
                 product.getFeatured(),
+                product.getActive(),
                 product.getAverageRating(),
                 product.getReviewCount(),
-                totalStock(product)
+                totalStock(product),
+                product.getSeller() != null ? product.getSeller().getId() : null,
+                product.getSeller() != null ? trimToNull(product.getSeller().getFullName()) : null,
+                product.getSeller() != null ? trimToNull(product.getSeller().getStoreName()) : null
         );
     }
 
-    private OrderSummaryResponse mapOrderSummary(Order order) {
+    private OrderSummaryResponse mapOrderSummary(Order order, Map<Long, Product> productById) {
+        OrderSellerSnapshot seller = resolveOrderSellerSnapshot(order, productById);
+        ShippingAddress address = order.getShippingAddress();
         return new OrderSummaryResponse(
                 order.getId(),
                 order.getOrderNumber(),
@@ -227,7 +254,69 @@ public class SellerService {
                 order.getItems() != null ? order.getItems().size() : 0,
                 order.getCreatedAt(),
                 order.getUpdatedAt(),
-                order.getDeliveredAt()
+                order.getDeliveredAt(),
+                Boolean.TRUE.equals(order.getSellerPaid()),
+                order.getSellerPaidAt(),
+                address != null ? trimToNull(address.getFullName()) : null,
+                address != null ? trimToNull(address.getPhone()) : null,
+                seller.sellerId(),
+                seller.sellerName(),
+                seller.sellerStoreName(),
+                seller.sellerIds()
+        );
+    }
+
+    private Map<Long, Product> loadProductsByOrderItems(List<Order> orders) {
+        Map<Long, Product> productById = new HashMap<>();
+        Set<Long> productIds = orders.stream()
+                .flatMap(order -> order.getItems().stream())
+                .map(item -> item.getProductId())
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        if (!productIds.isEmpty()) {
+            productRepository.findAllById(productIds).forEach(product -> productById.put(product.getId(), product));
+        }
+        return productById;
+    }
+
+    private OrderSellerSnapshot resolveOrderSellerSnapshot(Order order, Map<Long, Product> productById) {
+        Map<Long, UserAccount> sellers = new LinkedHashMap<>();
+        order.getItems().forEach(item -> {
+            Long productId = item.getProductId();
+            if (productId == null) {
+                return;
+            }
+            Product product = productById.get(productId);
+            if (product == null || product.getSeller() == null || product.getSeller().getId() == null) {
+                return;
+            }
+            UserAccount seller = product.getSeller();
+            sellers.putIfAbsent(seller.getId(), seller);
+        });
+
+        List<Long> sellerIds = List.copyOf(sellers.keySet());
+        if (sellerIds.isEmpty()) {
+            return new OrderSellerSnapshot(null, null, null, List.of());
+        }
+        if (sellerIds.size() == 1) {
+            UserAccount seller = sellers.get(sellerIds.get(0));
+            return new OrderSellerSnapshot(
+                    seller.getId(),
+                    trimToNull(seller.getFullName()),
+                    trimToNull(seller.getStoreName()),
+                    sellerIds
+            );
+        }
+        String sellerNames = sellers.values().stream()
+                .map(UserAccount::getFullName)
+                .map(this::trimToNull)
+                .filter(name -> name != null)
+                .collect(Collectors.joining(", "));
+        return new OrderSellerSnapshot(
+                sellerIds.get(0),
+                sellerNames.isBlank() ? "Nhiều seller" : sellerNames,
+                "Nhiều seller",
+                sellerIds
         );
     }
 

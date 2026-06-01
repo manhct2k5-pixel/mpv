@@ -33,6 +33,8 @@ export interface UserProfile {
   darkModeEnabled?: boolean;
   emailNotificationEnabled?: boolean;
   autoSyncEnabled?: boolean;
+  accountLocked?: boolean;
+  walletBalance?: number;
 }
 
 export interface UserDefaultAddress {
@@ -97,6 +99,8 @@ export interface AdminUserInsight {
   totalTransactions: number;
   flagged: number;
   budgets: number;
+  accountLocked?: boolean;
+  walletBalance?: number;
 }
 
 export interface AdminOverview {

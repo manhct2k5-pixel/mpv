@@ -2,9 +2,9 @@ import {
   ClipboardCheck,
   LifeBuoy,
   PackageCheck,
+  PackagePlus,
   ReceiptText,
   RefreshCcw,
-  Truck,
   UserRound,
   View
 } from 'lucide-react';
@@ -30,14 +30,8 @@ export interface StaffOverviewSignal {
 export const staffNavItems: StaffNavItem[] = [
   { key: 'dashboard', label: 'Dashboard', path: '/staff', icon: View, badgeKey: 'pendingOrders' },
   { key: 'orders', label: 'Xử lý đơn hàng', path: '/staff/orders', icon: ReceiptText, badgeKey: 'pendingOrders' },
+  { key: 'products', label: 'Duyệt sản phẩm', path: '/staff/san-pham', icon: PackagePlus },
   { key: 'qc', label: 'Đóng gói & QC', path: '/staff/qc-packing', icon: PackageCheck, badgeKey: 'packingOrders' },
-  {
-    key: 'shipment',
-    label: 'Vận đơn & Bàn giao',
-    path: '/staff/shipments',
-    icon: Truck,
-    badgeKey: 'handoverOrders'
-  },
   { key: 'tickets', label: 'Ticket hỗ trợ', path: '/staff/tickets', icon: LifeBuoy, badgeKey: 'openTickets' },
   { key: 'returns', label: 'Đổi trả', path: '/staff/returns', icon: RefreshCcw, badgeKey: 'returnFocus' },
   { key: 'status', label: 'Cập nhật trạng thái đơn', path: '/staff/status', icon: ClipboardCheck },

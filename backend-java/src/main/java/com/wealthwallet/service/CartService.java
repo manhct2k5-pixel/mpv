@@ -120,7 +120,7 @@ public class CartService {
             throw new ResponseStatusException(BAD_REQUEST, "Giỏ hàng trống, chưa thể áp voucher");
         }
         double subtotal = calculateSubtotal(cart.getItems());
-        Voucher voucher = voucherService.getValidVoucherOrThrow(code, subtotal);
+        Voucher voucher = voucherService.getValidVoucherOrThrow(code, subtotal, resolveCartSellerId(cart));
         cart.setAppliedVoucher(voucher);
         cart.setUpdatedAt(LocalDateTime.now());
         cartRepository.save(cart);
@@ -131,6 +131,38 @@ public class CartService {
     public CartResponse removeVoucher(UserAccount user) {
         Cart cart = getOrCreateCart(user);
         cart.setAppliedVoucher(null);
+        cart.setUpdatedAt(LocalDateTime.now());
+        cartRepository.save(cart);
+        return buildCartResponse(cart);
+    }
+
+    @Transactional
+    public CartResponse mergeGuestCart(UserAccount user, List<CartItemRequest> guestItems) {
+        Cart cart = getOrCreateCart(user);
+        for (CartItemRequest req : guestItems) {
+            try {
+                ProductVariant variant = variantRepository.findById(req.variantId()).orElse(null);
+                if (variant == null) continue;
+                ensureSingleSellerCart(cart, variant);
+                CartItem existing = cart.getItems().stream()
+                        .filter(i -> i.getVariant().getId().equals(variant.getId()))
+                        .findFirst().orElse(null);
+                int desiredQty = req.quantity();
+                if (existing != null) {
+                    desiredQty += existing.getQuantity();
+                }
+                int stockQty = variant.getStockQty() != null ? variant.getStockQty() : 0;
+                int finalQty = Math.min(desiredQty, Math.max(stockQty, 0));
+                if (finalQty <= 0) continue;
+                if (existing != null) {
+                    existing.setQuantity(finalQty);
+                } else {
+                    cart.getItems().add(CartItem.builder().cart(cart).variant(variant).quantity(finalQty).build());
+                }
+            } catch (Exception ignored) {
+                // bỏ qua item không hợp lệ, tiếp tục merge item tiếp theo
+            }
+        }
         cart.setUpdatedAt(LocalDateTime.now());
         cartRepository.save(cart);
         return buildCartResponse(cart);
@@ -253,6 +285,16 @@ public class CartService {
             return null;
         }
         return product.getSeller().getId();
+    }
+
+    private Long resolveCartSellerId(Cart cart) {
+        return cart.getItems().stream()
+                .map(CartItem::getVariant)
+                .filter(Objects::nonNull)
+                .map(this::resolveSellerId)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 
     private double calculateSubtotal(List<CartItem> items) {

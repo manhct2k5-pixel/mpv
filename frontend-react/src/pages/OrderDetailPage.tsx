@@ -12,11 +12,11 @@ import {
 } from '../constants/payment.ts';
 
 const orderStatusLabels: Record<string, string> = {
-  pending: 'Chờ xác nhận',
+  pending: 'Chờ người bán xác nhận',
   processing: 'Đang xử lý',
-  confirmed: 'Đã xác nhận',
-  packing: 'Đang đóng gói',
-  shipped: 'Đang giao',
+  confirmed: 'Đã xác nhận (chờ tạo vận đơn)',
+  packing: 'Đang tạo vận đơn',
+  shipped: 'Đang vận chuyển',
   delivered: 'Đã giao',
   cancelled: 'Đã hủy'
 };
@@ -38,14 +38,14 @@ const OrderDetailPage = () => {
     queryKey: ['store-order', orderId],
     queryFn: () => storeApi.order(orderId),
     enabled: isAuthenticated && Number.isFinite(orderId),
-    refetchInterval: 15_000
+    refetchInterval: 5_000
   });
 
   const rawRole = (profile?.role ?? '').toLowerCase();
   const role = rawRole === 'styles' ? 'warehouse' : rawRole;
   const isCustomer = role === 'user';
   const isWarehouse = role === 'warehouse';
-  const sellerCanManageOrderFlow = role === 'seller' && ['pending', 'processing', 'confirmed'].includes(order?.status?.toLowerCase() ?? '');
+  const sellerCanManageOrderFlow = role === 'seller' && order?.status?.toLowerCase() === 'pending';
   const canManageStatus = role === 'admin' || sellerCanManageOrderFlow || isWarehouse;
 
   const [editing, setEditing] = useState(false);
@@ -90,6 +90,8 @@ const OrderDetailPage = () => {
       queryClient.setQueryData(['store-order', orderId], data);
       queryClient.invalidateQueries({ queryKey: ['store-orders'] });
       queryClient.invalidateQueries({ queryKey: ['seller-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-orders-processing'] });
+      queryClient.invalidateQueries({ queryKey: ['seller-layout-order-signals'] });
       setActionMessage({ tone: 'success', text: 'Đã cập nhật trạng thái đơn hàng.' });
     },
     onError: (error: any) => {
@@ -129,11 +131,16 @@ const OrderDetailPage = () => {
   });
 
   const confirmPaymentMutation = useMutation({
-    mutationFn: () => storeApi.confirmOrderPayment(orderId),
+    mutationFn: () =>
+      role === 'admin'
+        ? financeApi.admin.confirmOrderPayment(orderId)
+        : storeApi.confirmOrderPayment(orderId),
     onSuccess: (data) => {
       queryClient.setQueryData(['store-order', orderId], data);
       queryClient.invalidateQueries({ queryKey: ['store-orders'] });
       queryClient.invalidateQueries({ queryKey: ['seller-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-orders-processing'] });
+      queryClient.invalidateQueries({ queryKey: ['seller-layout-order-signals'] });
       setActionMessage({ tone: 'success', text: 'Đã xác nhận thanh toán cho đơn hàng.' });
     },
     onError: (error: any) => {
@@ -183,8 +190,6 @@ const OrderDetailPage = () => {
     }
 
     const currentStatus = order.status.toLowerCase();
-    const isPaidOrCod =
-      order.paymentMethod.toLowerCase() === 'cod' || order.paymentStatus.toLowerCase() === 'paid';
     const options = [currentStatus];
 
     if (currentStatus === 'cancelled' || currentStatus === 'delivered') {
@@ -195,24 +200,22 @@ const OrderDetailPage = () => {
       if (currentStatus === 'confirmed') {
         options.push('packing');
       }
-      if (currentStatus === 'packing' && isPaidOrCod) {
-        options.push('shipped');
-      }
+      // packing → shipped tự động sau 5 giây, không cần thao tác thủ công
       return Array.from(new Set(options));
     }
 
     const nextStatus = (() => {
       switch (currentStatus) {
         case 'pending':
-          return 'processing';
+          return 'confirmed'; // Người bán xác nhận đơn
         case 'processing':
-          return 'confirmed';
+          return 'confirmed'; // Tương thích ngược
         case 'confirmed':
-          return 'packing';
+          return role === 'admin' ? 'packing' : null;
         case 'packing':
-          return isPaidOrCod ? 'shipped' : null;
+          return role === 'admin' ? 'shipped' : null; // Admin override; bình thường tự động
         case 'shipped':
-          return 'delivered';
+          return 'delivered'; // Người mua xác nhận đã nhận được hàng
         default:
           return null;
       }
@@ -221,7 +224,7 @@ const OrderDetailPage = () => {
     if (nextStatus) {
       options.push(nextStatus);
     }
-    if (role !== 'seller' || ['pending', 'processing', 'confirmed'].includes(currentStatus)) {
+    if (role !== 'seller' || ['pending', 'processing'].includes(currentStatus)) {
       options.push('cancelled');
     }
     return Array.from(new Set(options));
@@ -263,24 +266,20 @@ const OrderDetailPage = () => {
   const normalizedPaymentMethod = order.paymentMethod.toLowerCase();
   const normalizedPaymentStatus = order.paymentStatus.toLowerCase();
   const isBankTransfer = normalizedPaymentMethod === 'bank_transfer';
-  const customerCanEditOrder = isCustomer && ['pending', 'processing', 'confirmed'].includes(normalizedStatus);
-  const sellerCanAdjustOrder = role === 'seller' && ['pending', 'processing', 'confirmed'].includes(normalizedStatus);
-  const canEditOrder = role === 'admin' || sellerCanAdjustOrder || customerCanEditOrder;
+  const customerCanEditOrder = isCustomer && normalizedStatus === 'pending';
+  const sellerCanAdjustOrder = role === 'seller' && ['pending', 'processing'].includes(normalizedStatus);
+  const sellerCanEditOrder = role === 'seller' && ['pending', 'processing'].includes(normalizedStatus);
+  const canEditOrder = role === 'admin' || sellerCanEditOrder || customerCanEditOrder;
   const canConfirmPayment =
-    canManageStatus &&
-    !isWarehouse &&
+    role === 'admin' &&
     isBankTransfer &&
     normalizedPaymentStatus === 'unpaid' &&
     normalizedStatus !== 'cancelled';
-  const isShippingBlockedByPayment =
-    canManageStatus &&
-    normalizedStatus === 'packing' &&
-    isBankTransfer &&
-    normalizedPaymentStatus !== 'paid';
+  const canConfirmReceipt = isCustomer && normalizedStatus === 'shipped';
   const canCancelOrder =
     normalizedStatus !== 'cancelled' &&
     normalizedStatus !== 'delivered' &&
-    (role === 'admin' || sellerCanAdjustOrder || customerCanEditOrder);
+    (role === 'admin' || sellerCanAdjustOrder || (isCustomer && normalizedStatus === 'pending'));
   const canReviewProducts = isCustomer && normalizedStatus === 'delivered';
   const customerSupportTab = normalizedStatus === 'delivered' ? 'returns' : 'tickets';
   const customerSupportLabel =
@@ -447,11 +446,6 @@ const OrderDetailPage = () => {
             </div>
             <p>Thanh toán: {paymentMethodLabel}</p>
             <p>Tình trạng: {paymentStatusLabel}</p>
-            {isShippingBlockedByPayment && (
-              <p className="text-xs text-amber-700">
-                Cần xác nhận chuyển khoản trước khi chuyển trạng thái sang “Đang giao”.
-              </p>
-            )}
             {isBankTransfer && (
               <div className="grid gap-4 rounded-2xl border border-rose-200/70 bg-rose-50/55 p-4 text-xs text-cocoa/80 md:grid-cols-[0.95fr,1.05fr]">
                 <div className="space-y-2">
@@ -512,6 +506,19 @@ const OrderDetailPage = () => {
                 disabled={confirmPaymentMutation.isPending}
               >
                 {confirmPaymentMutation.isPending ? 'Đang xác nhận...' : 'Xác nhận đã thanh toán'}
+              </button>
+            )}
+            {canConfirmReceipt && (
+              <button
+                type="button"
+                className="btn-primary w-full"
+                onClick={() => {
+                  setActionMessage(null);
+                  updateStatusMutation.mutate('delivered');
+                }}
+                disabled={updateStatusMutation.isPending}
+              >
+                {updateStatusMutation.isPending ? 'Đang xác nhận...' : 'Đã nhận được hàng'}
               </button>
             )}
             {canCancelOrder && (

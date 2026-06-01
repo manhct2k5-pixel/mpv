@@ -7,6 +7,15 @@ import type { OrderSummary } from '../types/store';
 
 type RefundViewStatus = 'all' | 'pending' | 'refunded' | 'rejected';
 
+const getOrderSellerLabel = (order: OrderSummary) => {
+  const storeName = order.sellerStoreName?.trim();
+  const sellerName = order.sellerName?.trim();
+  if (storeName) return storeName;
+  if (sellerName) return sellerName;
+  if (order.sellerIds?.length) return order.sellerIds.map((id) => `Seller #${id}`).join(', ');
+  return order.sellerId ? `Seller #${order.sellerId}` : 'Chưa gán seller';
+};
+
 const AdminRefundsPage = () => {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<RefundViewStatus>('all');
@@ -29,7 +38,7 @@ const AdminRefundsPage = () => {
     mutationFn: (payload: { orderId: number; reason: string }) =>
       financeApi.admin.refundOrder(payload.orderId, payload.reason),
     onSuccess: (updatedOrder) => {
-      setStatusMessage(`Đã duyệt hoàn tiền cho đơn ${updatedOrder.orderNumber}.`);
+      setStatusMessage(`Đã duyệt hoàn tiền cho đơn ${updatedOrder.orderNumber}. Số tiền đã cộng vào ví khách hàng.`);
       setReason('');
       setSelectedOrderId(null);
       queryClient.invalidateQueries({ queryKey: ['admin', 'orders'] });
@@ -147,8 +156,8 @@ const AdminRefundsPage = () => {
                   <tr key={row.requestCode}>
                     <td>{row.requestCode}</td>
                     <td>{row.order.orderNumber}</td>
-                    <td>--</td>
-                    <td>--</td>
+                    <td>{row.order.customerName?.trim() || `Khách #${row.order.id}`}</td>
+                    <td>{getOrderSellerLabel(row.order)}</td>
                     <td>{row.amount.toLocaleString('vi-VN')} đ</td>
                     <td>
                       <span className={`admin-status-badge ${row.viewStatus === 'pending' ? 'warning' : ''}`}>

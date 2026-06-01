@@ -16,7 +16,7 @@ const toPriority = (order: OrderSummary): PriorityLevel => {
   const status = order.status.toLowerCase();
   const ageHours = (Date.now() - new Date(order.createdAt).getTime()) / (1000 * 60 * 60);
   if ((status === 'pending' && ageHours >= 24) || order.paymentStatus.toLowerCase() === 'unpaid') return 'high';
-  if (status === 'processing' || status === 'confirmed') return 'normal';
+  if (status === 'confirmed' || status === 'packing') return 'normal';
   return 'low';
 };
 
@@ -34,6 +34,18 @@ const matchDateFilter = (value: string, filter: DateFilter) => {
   if (filter === '30d') return diff <= 30 * 24 * 60 * 60 * 1000;
   return true;
 };
+
+const getOrderSellerLabel = (order: OrderSummary) => {
+  const storeName = order.sellerStoreName?.trim();
+  const sellerName = order.sellerName?.trim();
+  if (storeName) return storeName;
+  if (sellerName) return sellerName;
+  if (order.sellerIds?.length) return order.sellerIds.map((id) => `Seller #${id}`).join(', ');
+  return order.sellerId ? `Seller #${order.sellerId}` : 'Chưa gán seller';
+};
+
+const getOrderCustomerLabel = (order: OrderSummary) =>
+  order.customerName?.trim() || `Khách #${order.id}`;
 
 const StaffOrderProcessingPage = () => {
   const queryClient = useQueryClient();
@@ -100,26 +112,35 @@ const StaffOrderProcessingPage = () => {
   const { data: selectedOrderDetail } = useQuery<Order>({
     queryKey: ['staff-order-detail', selectedOrderId],
     queryFn: () => storeApi.order(selectedOrderId as number),
-    enabled: selectedOrderId != null
+    enabled: selectedOrderId != null,
+    refetchInterval: 5_000
   });
 
   useEffect(() => {
     setInternalNotes((prev) => {
       const next = { ...prev };
+      let changed = false;
       workStates.forEach((state) => {
         if (state.internalNote != null && next[state.orderId] == null) {
           next[state.orderId] = state.internalNote;
+          changed = true;
         }
       });
-      return next;
+      return changed ? next : prev;
     });
   }, [workStates]);
 
   const updateStatusMutation = useMutation({
     mutationFn: (payload: { id: number; status: string }) => storeApi.updateOrderStatus(payload.id, payload.status),
-    onSuccess: () => {
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['staff-order-detail', updated.id], updated);
+      queryClient.setQueryData(['store-order', updated.id], updated);
       queryClient.invalidateQueries({ queryKey: ['staff-orders-processing'] });
-      queryClient.invalidateQueries({ queryKey: ['staff-layout-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-order-detail', updated.id] });
+      queryClient.invalidateQueries({ queryKey: ['store-order', updated.id] });
+      queryClient.invalidateQueries({ queryKey: ['store-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['seller-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['seller-layout-order-signals'] });
     },
     onError: (error: any) => {
       setStatusMessage(error.response?.data?.message || error.response?.data?.error || 'Không cập nhật được trạng thái đơn.');
@@ -156,10 +177,11 @@ const StaffOrderProcessingPage = () => {
     return orders.filter((order) => {
       const status = order.status.toLowerCase();
       const priority = toPriority(order);
-      const pseudoSeller = `seller-${(order.id % 7) + 1}`;
-      const matchesCode = !query || order.orderNumber.toLowerCase().includes(query);
+      const sellerText = getOrderSellerLabel(order).toLowerCase();
+      const customerText = getOrderCustomerLabel(order).toLowerCase();
+      const matchesCode = !query || `${order.orderNumber} ${customerText}`.toLowerCase().includes(query);
       const matchesDate = matchDateFilter(order.createdAt, dateFilter);
-      const matchesSeller = !sellerFilter.trim() || pseudoSeller.includes(sellerFilter.trim().toLowerCase());
+      const matchesSeller = !sellerFilter.trim() || sellerText.includes(sellerFilter.trim().toLowerCase());
       const matchesStatus = statusFilter === 'all' || status === statusFilter;
       const matchesPriority = priorityFilter === 'all' || priority === priorityFilter;
       return matchesCode && matchesDate && matchesSeller && matchesStatus && matchesPriority;
@@ -173,15 +195,7 @@ const StaffOrderProcessingPage = () => {
 
   const handleAssign = (order: OrderSummary) => {
     updateWorkStateMutation.mutate({ orderId: order.id, assigneeName, postponed: false });
-    const normalizedStatus = normalizeOrderStatus(order.status);
-    if (isAdmin && normalizedStatus === 'pending') {
-      updateStatusMutation.mutate({ id: order.id, status: 'processing' });
-      setStatusMessage(
-        `Đã nhận đơn ${order.orderNumber} và cập nhật trạng thái "Đang xử lý nội bộ". Tiếp tục chuyển trạng thái theo quy trình vận hành.`
-      );
-    } else {
-      setStatusMessage(`Đã nhận đơn ${order.orderNumber} cho ca trực hiện tại.`);
-    }
+    setStatusMessage(`Đã nhận đơn ${order.orderNumber} cho ca trực hiện tại.`);
   };
 
   const handleMoveToPacking = (order: OrderSummary) => {
@@ -216,7 +230,7 @@ const StaffOrderProcessingPage = () => {
           <p className="admin-badge">Xử lý đơn nội bộ</p>
           <h1 className="text-2xl font-semibold text-[var(--admin-text)] sm:text-3xl">Tiếp nhận và điều phối đơn mới</h1>
           <p className="max-w-3xl text-sm text-[var(--admin-muted)]">
-            Kiểm tra nhanh thông tin đơn, nhận xử lý, chuyển bước đóng gói và theo dõi chi tiết từng đơn nội bộ.
+            Nhận đơn đã được người bán xác nhận, tạo vận đơn để chuyển sang đóng gói. Hệ thống tự động chuyển sang trạng thái vận chuyển sau 5 giây.
           </p>
         </div>
       </section>
@@ -251,7 +265,7 @@ const StaffOrderProcessingPage = () => {
             value={sellerFilter}
             onChange={(event) => setSellerFilter(event.target.value)}
             className="admin-input"
-            placeholder="Người bán (seller-1...)"
+            placeholder="Tìm seller / gian hàng"
           />
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="admin-select">
             <option value="all">Mọi trạng thái</option>
@@ -293,6 +307,7 @@ const StaffOrderProcessingPage = () => {
                 <tr>
                   <th>Mã đơn</th>
                   <th>Tên khách hàng</th>
+                  <th>Seller</th>
                   <th>Số sản phẩm</th>
                   <th>Tổng tiền</th>
                   <th>Trạng thái hiện tại</th>
@@ -308,7 +323,13 @@ const StaffOrderProcessingPage = () => {
                     return (
                       <tr key={order.id}>
                         <td>{order.orderNumber}</td>
-                        <td>{`Khách #${order.id}`}</td>
+                        <td>
+                          <div className="space-y-0.5">
+                            <p>{getOrderCustomerLabel(order)}</p>
+                            {order.customerPhone ? <p className="text-[11px] text-[var(--admin-muted)]">{order.customerPhone}</p> : null}
+                          </div>
+                        </td>
+                        <td>{getOrderSellerLabel(order)}</td>
                         <td>{order.itemCount}</td>
                         <td>{order.total.toLocaleString('vi-VN')} đ</td>
                         <td>
@@ -336,7 +357,7 @@ const StaffOrderProcessingPage = () => {
                               disabled={updateStatusMutation.isPending || !nextStatus}
                               onClick={() => handleMoveToPacking(order)}
                             >
-                              Chuyển bước kế tiếp
+                              {nextStatus === 'packing' ? 'Xác nhận vận đơn' : 'Chuyển bước kế tiếp'}
                             </button>
                             <button type="button" className="admin-action-button danger" onClick={() => handlePostpone(order)}>
                               Tạm hoãn
@@ -352,7 +373,7 @@ const StaffOrderProcessingPage = () => {
                 ))}
                 {visibleOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center text-sm text-[var(--admin-muted)]">
+                    <td colSpan={8} className="text-center text-sm text-[var(--admin-muted)]">
                       Không có đơn phù hợp bộ lọc.
                     </td>
                   </tr>
@@ -395,6 +416,7 @@ const StaffOrderProcessingPage = () => {
               <div className="mt-2 space-y-1 text-xs text-[var(--admin-muted)]">
                 <p>Trạng thái thanh toán: {selectedOrderDetail.paymentStatus}</p>
                 <p>Trạng thái đơn: {selectedOrderDetail.status}</p>
+                <p>Seller phụ trách: {getOrderSellerLabel(selectedOrder)}</p>
                 <p>Tổng tiền: {selectedOrderDetail.total.toLocaleString('vi-VN')} đ</p>
                 <p>Ghi chú khách: {selectedOrderDetail.shippingAddress?.note ?? '--'}</p>
               </div>

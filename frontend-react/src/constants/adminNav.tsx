@@ -5,9 +5,11 @@ import {
   HandCoins,
   Home,
   KeyRound,
+  PackageCheck,
   Receipt,
   Settings2,
   ShieldCheck,
+  Ticket,
   UserCog,
   UserRound,
   Users
@@ -27,6 +29,7 @@ export interface AdminNavItem {
     | 'permissions'
     | 'catalogConfig'
     | 'orders'
+    | 'vouchers'
     | 'reports'
     | 'refunds'
     | 'logs'
@@ -53,6 +56,8 @@ export const adminNavItems: AdminNavItem[] = [
     sectionId: 'catalogConfig'
   },
   { key: 'orders', label: 'Giám sát đơn hàng', path: '/admin/orders', icon: Receipt, badgeKey: 'openOrders', sectionId: 'orders' },
+  { key: 'staff-ops', label: 'Vận hành Staff', path: '/staff', icon: PackageCheck },
+  { key: 'vouchers', label: 'Mã giảm giá', path: '/admin/vouchers', icon: Ticket, sectionId: 'vouchers' },
   { key: 'manual-order', label: 'Tạo đơn thủ công', path: '/admin/manual-order', icon: ClipboardPlus },
   { key: 'reports', label: 'Báo cáo', path: '/admin/reports', icon: BarChart3, sectionId: 'reports' },
   {

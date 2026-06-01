@@ -4,12 +4,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Minus, Plus, Trash2 } from 'lucide-react';
 import { financeApi, storeApi } from '../services/api.ts';
 import { useAuthStore } from '../store/auth.ts';
+import { useGuestCartStore } from '../store/guestCart.ts';
 import { getRoutePrefetchHandlers } from '../utils/routePrefetch';
 import ProductImage from '../components/store/ProductImage';
 import { canUseShoppingFlow } from '../utils/access';
 
 const CartPage = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const guestItems = useGuestCartStore((state) => state.items);
+  const guestUpdateItem = useGuestCartStore((state) => state.updateItem);
+  const guestRemoveItem = useGuestCartStore((state) => state.removeItem);
+  const guestClearCart = useGuestCartStore((state) => state.clearCart);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [voucherCode, setVoucherCode] = useState('');
@@ -18,6 +23,8 @@ const CartPage = () => {
   const homePrefetchHandlers = getRoutePrefetchHandlers('home');
   const productDetailPrefetchHandlers = getRoutePrefetchHandlers('productDetail');
   const checkoutPrefetchHandlers = getRoutePrefetchHandlers('checkout');
+  const guestCheckoutLoginPath = '/login?next=%2Fthanh-toan';
+  const guestCheckoutRegisterPath = '/register?next=%2Fthanh-toan';
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ['profile'],
     queryFn: financeApi.me,
@@ -102,9 +109,99 @@ const CartPage = () => {
   };
 
   if (!isAuthenticated) {
+    const guestSubtotal = guestItems.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+    const guestShipping = guestSubtotal > 0 && guestSubtotal < 500_000 ? 30_000 : 0;
     return (
-      <div className="rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
-        Vui lòng <Link to="/login" className="text-mocha underline">đăng nhập</Link> để xem giỏ hàng.
+      <div className="space-y-8 pb-8">
+        <section className="overflow-hidden rounded-[34px] border border-rose-200/70 bg-[linear-gradient(130deg,rgba(255,255,255,0.96),rgba(255,243,236,0.88))] p-6 shadow-[0_16px_36px_rgba(148,163,184,0.16)] sm:p-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-500">Cart</p>
+              <h1 className="mt-1 font-display text-3xl text-mocha">Giỏ hàng</h1>
+              <p className="text-sm text-cocoa/70">
+                Giỏ hàng tạm — bạn có thể xem và chỉnh sản phẩm trước khi đăng nhập để đặt hàng.
+              </p>
+            </div>
+            <button type="button" className="btn-secondary !border-rose-200/80 !bg-white/90" onClick={() => navigate('/')} {...homePrefetchHandlers}>
+              Tiếp tục mua sắm
+            </button>
+          </div>
+        </section>
+
+        {guestItems.length === 0 ? (
+          <div className="space-y-4 rounded-3xl border border-rose-200/70 bg-white/90 p-6 text-sm text-cocoa/70 shadow-[0_12px_24px_rgba(148,163,184,0.14)]">
+            <p>Giỏ hàng đang trống.</p>
+            <Link to="/" className="btn-secondary !border-rose-200/80 !bg-white/90 inline-block" {...homePrefetchHandlers}>Quay lại mua sắm</Link>
+          </div>
+        ) : (
+          <div className="grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
+            <div className="space-y-4">
+              {guestItems.map((item) => (
+                <div key={item.variantId} className="flex flex-col gap-4 rounded-3xl border border-rose-200/70 bg-white/92 p-4 shadow-[0_12px_24px_rgba(148,163,184,0.14)] sm:flex-row sm:items-center">
+                  <ProductImage
+                    src={item.imageUrl}
+                    alt={item.productName ?? 'Product'}
+                    title={item.productName ?? 'Sản phẩm'}
+                    subtitle={item.color ?? item.size ?? 'Mộc Mầm'}
+                    className="h-20 w-20 rounded-2xl"
+                    compact
+                  />
+                  <div className="flex-1 space-y-1">
+                    <Link
+                      to={item.productSlug ? `/san-pham/${item.productSlug}` : '/'}
+                      className="text-sm font-semibold text-cocoa hover:text-mocha"
+                      {...productDetailPrefetchHandlers}
+                    >
+                      {item.productName ?? 'Sản phẩm'}
+                    </Link>
+                    <p className="text-xs text-cocoa/60">{item.size} · {item.color}</p>
+                    <p className="text-sm font-semibold text-mocha">{formatPrice(item.unitPrice)}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center rounded-full border border-rose-200/70 bg-rose-50/70 px-2 py-1">
+                      <button type="button" className="rounded-full p-1 text-mocha hover:bg-rose-200/45" disabled={item.quantity <= 1} onClick={() => guestUpdateItem(item.variantId, Math.max(1, item.quantity - 1))}>
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <span className="min-w-[28px] text-center text-sm font-semibold text-cocoa">{item.quantity}</span>
+                      <button type="button" className="rounded-full p-1 text-mocha hover:bg-rose-200/45" disabled={item.quantity >= 99} onClick={() => guestUpdateItem(item.variantId, Math.min(99, item.quantity + 1))}>
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <p className="text-sm font-semibold text-mocha">{formatPrice(item.unitPrice * item.quantity)}</p>
+                    <button type="button" className="rounded-full border border-rose-200/80 p-2 text-mocha hover:bg-rose-100/70" onClick={() => guestRemoveItem(item.variantId)}>
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-4 rounded-3xl border border-rose-200/70 bg-white/92 p-5 shadow-[0_12px_24px_rgba(148,163,184,0.14)] lg:sticky lg:top-28">
+              <h2 className="text-lg font-semibold text-cocoa">Tóm tắt đơn</h2>
+              <div className="flex items-center justify-between text-sm text-cocoa/70">
+                <span>Tạm tính</span><span>{formatPrice(guestSubtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm text-cocoa/70">
+                <span>Phí vận chuyển</span><span>{guestShipping === 0 && guestSubtotal > 0 ? 'Miễn phí' : formatPrice(guestShipping)}</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-caramel/30 pt-3 text-base font-semibold text-mocha">
+                <span>Tổng cộng</span><span>{formatPrice(guestSubtotal + guestShipping)}</span>
+              </div>
+              <Link to={guestCheckoutLoginPath} className="btn-primary w-full text-center block">
+                Đăng nhập để đặt hàng
+              </Link>
+              <Link to={guestCheckoutRegisterPath} className="btn-secondary w-full text-center block">
+                Tạo tài khoản mới
+              </Link>
+              <p className="text-xs text-cocoa/60">
+                Giỏ hàng tạm sẽ được nhập vào tài khoản khách sau khi đăng nhập để hoàn tất thanh toán.
+              </p>
+              <button type="button" className="btn-secondary w-full" onClick={() => guestClearCart()}>
+                Xóa toàn bộ giỏ
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

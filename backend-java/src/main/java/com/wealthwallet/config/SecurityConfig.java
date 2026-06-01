@@ -36,7 +36,7 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(registry -> registry
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/login", "/api/register", "/api/register/seller", "/actuator/**").permitAll()
+                        .requestMatchers("/api/login", "/api/register", "/api/register/seller", "/api/forgot-password", "/actuator/**").permitAll()
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/store/categories",
@@ -46,7 +46,8 @@ public class SecurityConfig {
                                 "/api/store/products/**",
                                 "/api/store/lookbooks",
                                 "/api/store/lookbooks/**",
-                                "/api/store/stylists"
+                                "/api/store/stylists",
+                                "/api/store/vouchers/validate"
                         ).permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/store/products", "/api/store/products/**")
                         .hasAnyRole("ADMIN", "SELLER", "WAREHOUSE", "STYLES")
@@ -62,6 +63,7 @@ public class SecurityConfig {
                         .hasAnyRole("ADMIN", "WAREHOUSE", "STYLES")
                         .requestMatchers(HttpMethod.POST, "/api/store/orders/manual")
                         .hasRole("ADMIN")
+                        .requestMatchers("/api/seller/vouchers/**").hasAnyRole("ADMIN", "SELLER")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()

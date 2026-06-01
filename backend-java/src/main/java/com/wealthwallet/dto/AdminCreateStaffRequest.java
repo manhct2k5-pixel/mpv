@@ -2,11 +2,12 @@ package com.wealthwallet.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public record AdminCreateStaffRequest(
         @NotBlank String fullName,
         @Email @NotBlank String email,
-        @NotBlank String password,
+        @NotBlank @Size(min = 6, message = "Mật khẩu cần ít nhất 6 ký tự") String password,
         @NotBlank String role
 ) {
 }

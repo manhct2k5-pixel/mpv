@@ -73,6 +73,11 @@ public class StoreCatalogController {
         return storeCatalogService.featuredProducts();
     }
 
+    @GetMapping("/products/manage/{id}")
+    public StoreProductDetailResponse managedProduct(@PathVariable(name = "id") Long id) {
+        return storeProductManagementService.detail(userService.getCurrentUser(), id);
+    }
+
     @GetMapping("/products/{slug}")
     public StoreProductDetailResponse product(@PathVariable(name = "slug") String slug) {
         return storeCatalogService.productDetail(slug);

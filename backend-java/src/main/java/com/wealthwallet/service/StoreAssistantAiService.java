@@ -86,6 +86,7 @@ public class StoreAssistantAiService {
             String userPrompt = buildUserPrompt(persona, userMessage, recentConversation, cartContext, productHint, orderContext);
             String requestBody = objectMapper.writeValueAsString(Map.of(
                     "model", model,
+                    "stream", false,
                     "temperature", temperature,
                     "max_tokens", maxTokens,
                     "messages", List.of(
@@ -96,7 +97,7 @@ public class StoreAssistantAiService {
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(normalizeBaseUrl(baseUrl) + "/chat/completions"))
-                    .timeout(Duration.ofSeconds(25))
+                    .timeout(Duration.ofSeconds(60))
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + apiKey.trim())
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody))
@@ -163,12 +164,10 @@ public class StoreAssistantAiService {
                     .append("\n\n");
 
             builder.append("""
-                    Hãy trả lời đúng format sau (mỗi dòng 1 ý):
-                    Tóm tắt: ...
-                    Hướng dẫn: ...
-                    Lưu ý: ...
-                    Câu hỏi chốt: ...
-                    Nếu đã đủ dữ kiện, thay "Câu hỏi chốt" bằng "Kết luận: ...".
+                    Hãy trả lời trực tiếp, ngắn gọn, tự nhiên như nhân viên CSKH thật.
+                    Không dùng nhãn như "Tóm tắt:", "Hướng dẫn:", "Lưu ý:" — chỉ trả lời thẳng vào vấn đề.
+                    Nếu cần hỏi thêm, hỏi đúng 1 câu.
+                    Tối đa 4 câu.
                     """);
             return builder.toString();
         }
@@ -190,13 +189,9 @@ public class StoreAssistantAiService {
                 .append("\n\n");
 
         builder.append("""
-                Hãy trả lời đúng format sau (mỗi dòng 1 ý):
-                Chẩn đoán: ...
-                Gợi ý 1: ...
-                Gợi ý 2: ...
-                Tránh: ...
-                Câu hỏi chốt: ...
-                Nếu đã đủ dữ kiện, thay "Câu hỏi chốt" bằng "Kết luận: ...".
+                Hãy trả lời tự nhiên, thân thiện như stylist thật — không dùng nhãn cứng nhắc.
+                Gợi ý cụ thể, ngắn gọn. Nếu cần hỏi thêm, hỏi đúng 1 câu.
+                Tối đa 5 câu.
                 """);
         return builder.toString();
     }

@@ -95,6 +95,11 @@ public class Order {
 
     private LocalDateTime deliveredAt;
 
+    @Builder.Default
+    private Boolean sellerPaid = false;
+
+    private LocalDateTime sellerPaidAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private UserAccount user;

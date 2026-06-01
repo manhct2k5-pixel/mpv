@@ -9,6 +9,7 @@ import com.wealthwallet.domain.entity.ProductVariant;
 import com.wealthwallet.domain.entity.ShippingAddress;
 import com.wealthwallet.domain.entity.UserAccount;
 import com.wealthwallet.domain.entity.Voucher;
+import com.wealthwallet.dto.AdminSystemConfigResponse;
 import com.wealthwallet.dto.ManualOrderCreateRequest;
 import com.wealthwallet.dto.ManualOrderItemRequest;
 import com.wealthwallet.dto.OrderCreateRequest;
@@ -24,6 +25,7 @@ import com.wealthwallet.repository.ProductRepository;
 import com.wealthwallet.repository.ProductVariantRepository;
 import com.wealthwallet.repository.UserAccountRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -32,6 +34,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,6 +51,7 @@ public class OrderService {
 
     private static final double FREE_SHIPPING_THRESHOLD = 500_000;
     private static final double BASE_SHIPPING_FEE = 30_000;
+    private static final int DEFAULT_ORDER_AUTO_CANCEL_HOURS = 48;
 
     private final CartRepository cartRepository;
     private final OrderRepository orderRepository;
@@ -56,6 +60,15 @@ public class OrderService {
     private final ProductRepository productRepository;
     private final StoreMessageService storeMessageService;
     private final VoucherService voucherService;
+    private final AdminSystemConfigService adminSystemConfigService;
+
+    private record OrderSellerSnapshot(
+            Long sellerId,
+            String sellerName,
+            String sellerStoreName,
+            List<Long> sellerIds
+    ) {
+    }
 
     @Transactional
     public OrderResponse createOrder(UserAccount user, OrderCreateRequest request) {
@@ -75,17 +88,17 @@ public class OrderService {
                     return calculateLineTotal(variant, item.getQuantity());
                 })
                 .sum();
-        double shippingFee = subtotal >= FREE_SHIPPING_THRESHOLD ? 0.0 : BASE_SHIPPING_FEE;
+        double shippingFee = calculateShippingFee(subtotal, request.city(), request.province());
         Voucher appliedVoucher = cart.getAppliedVoucher();
         if (appliedVoucher != null) {
-            voucherService.validateVoucher(appliedVoucher, subtotal);
+            voucherService.validateVoucher(appliedVoucher, subtotal, resolveCartSellerId(cart));
         }
         double discount = voucherService.calculateDiscount(appliedVoucher, subtotal);
         double total = subtotal + shippingFee - discount;
 
         Order order = Order.builder()
                 .orderNumber(generateOrderNumber())
-                .status(Order.Status.PENDING)
+                .status(initialOrderStatus(request.paymentMethod()))
                 .paymentMethod(request.paymentMethod())
                 .paymentStatus(Order.PaymentStatus.UNPAID)
                 .subtotal(subtotal)
@@ -150,7 +163,7 @@ public class OrderService {
         double subtotal = request.items().stream()
                 .mapToDouble(item -> calculateLineTotal(variants.get(item.variantId()), item.quantity()))
                 .sum();
-        double shippingFee = subtotal >= FREE_SHIPPING_THRESHOLD ? 0.0 : BASE_SHIPPING_FEE;
+        double shippingFee = calculateShippingFee(subtotal, request.city(), request.province());
         double discount = 0.0;
         double total = subtotal + shippingFee - discount;
 
@@ -209,18 +222,7 @@ public class OrderService {
         List<Order> orders = orderRepository.findByUserOrderByCreatedAtDesc(user);
         applyAutoStatusTransitions(orders);
         return orders.stream()
-                .map(order -> new OrderSummaryResponse(
-                        order.getId(),
-                        order.getOrderNumber(),
-                        order.getStatus().name().toLowerCase(),
-                        order.getPaymentMethod().name().toLowerCase(),
-                        order.getPaymentStatus().name().toLowerCase(),
-                order.getTotal(),
-                order.getItems() != null ? order.getItems().size() : 0,
-                order.getCreatedAt(),
-                order.getUpdatedAt(),
-                order.getDeliveredAt()
-                ))
+                .map(this::mapOrderSummary)
                 .toList();
     }
 
@@ -239,8 +241,8 @@ public class OrderService {
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Order not found"));
         ensureCanViewOrder(user, order);
         applyAutoStatusTransition(order);
-        ensureCanManageOrder(user, order);
         Order.Status nextStatus = parseStatus(request.status());
+        ensureCanManageOrder(user, order, nextStatus);
         if (isWarehouseSupportRole(user.getRole())) {
             ensureWarehouseCanUpdateStatus(nextStatus);
         }
@@ -259,7 +261,6 @@ public class OrderService {
         }
 
         ensureSequentialStatusTransition(order.getStatus(), nextStatus);
-        ensurePaymentReadyForShipping(order, nextStatus);
 
         if (nextStatus == Order.Status.DELIVERED
                 && order.getPaymentMethod() == Order.PaymentMethod.COD
@@ -281,12 +282,10 @@ public class OrderService {
     public OrderResponse confirmBankTransferPayment(UserAccount user, Long orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Order not found"));
-        ensureCanViewOrder(user, order);
-        applyAutoStatusTransition(order);
-        ensureCanManageOrder(user, order);
-        if (isWarehouseSupportRole(user.getRole())) {
-            throw new ResponseStatusException(FORBIDDEN, "Kho không có quyền xác nhận thanh toán");
+        if (user.getRole() != UserAccount.Role.ADMIN) {
+            throw new ResponseStatusException(FORBIDDEN, "Chỉ admin được xác nhận chuyển khoản");
         }
+        applyAutoStatusTransition(order);
 
         if (order.getPaymentMethod() != Order.PaymentMethod.BANK_TRANSFER) {
             throw new ResponseStatusException(BAD_REQUEST, "Đơn hàng không dùng phương thức chuyển khoản");
@@ -329,6 +328,13 @@ public class OrderService {
 
         order.setPaymentStatus(Order.PaymentStatus.REFUNDED);
         order.setNotes(appendAdminRefundNote(order.getNotes(), normalizedReason));
+        UserAccount buyer = order.getUser();
+        if (buyer != null) {
+            double currentWallet = buyer.getWalletBalance() != null ? buyer.getWalletBalance() : 0.0;
+            double refundAmount = order.getTotal() != null ? order.getTotal() : 0.0;
+            buyer.setWalletBalance(currentWallet + refundAmount);
+            userAccountRepository.save(buyer);
+        }
         order.setUpdatedAt(LocalDateTime.now());
         Order saved = orderRepository.save(order);
         return mapOrder(saved);
@@ -408,6 +414,32 @@ public class OrderService {
         return order;
     }
 
+    @Scheduled(fixedDelay = 5000)
+    @Transactional
+    public void autoTransitionPackingToShipped() {
+        LocalDateTime cutoff = LocalDateTime.now().minusSeconds(5);
+        List<Order> packingOrders = orderRepository.findByStatusAndUpdatedAtBefore(Order.Status.PACKING, cutoff);
+        for (Order order : packingOrders) {
+            order.setStatus(Order.Status.SHIPPED);
+            order.setUpdatedAt(LocalDateTime.now());
+            orderRepository.save(order);
+        }
+    }
+
+    @Scheduled(fixedDelayString = "${app.order-auto-cancel-scan-ms:300000}")
+    @Transactional
+    public void cancelExpiredUnpaidBankTransferOrders() {
+        LocalDateTime cutoff = LocalDateTime.now().minusHours(resolveOrderAutoCancelHours());
+        List<Order> expiredOrders = orderRepository.findByPaymentMethodAndPaymentStatusAndStatusNotInAndCreatedAtBefore(
+                Order.PaymentMethod.BANK_TRANSFER,
+                Order.PaymentStatus.UNPAID,
+                List.of(Order.Status.CANCELLED, Order.Status.DELIVERED,
+                        Order.Status.PACKING, Order.Status.SHIPPED),
+                cutoff
+        );
+        expiredOrders.forEach(this::cancelExpiredUnpaidBankTransferOrder);
+    }
+
     private OrderResponse mapOrder(Order order) {
         List<OrderItemResponse> items = order.getItems().stream()
                 .sorted(Comparator.comparing(OrderItem::getId))
@@ -461,6 +493,81 @@ public class OrderService {
         );
     }
 
+    private OrderSummaryResponse mapOrderSummary(Order order) {
+        ShippingAddress address = order.getShippingAddress();
+        OrderSellerSnapshot seller = resolveOrderSellerSnapshot(order);
+        return new OrderSummaryResponse(
+                order.getId(),
+                order.getOrderNumber(),
+                order.getStatus().name().toLowerCase(),
+                order.getPaymentMethod().name().toLowerCase(),
+                order.getPaymentStatus().name().toLowerCase(),
+                order.getTotal(),
+                order.getItems() != null ? order.getItems().size() : 0,
+                order.getCreatedAt(),
+                order.getUpdatedAt(),
+                order.getDeliveredAt(),
+                Boolean.TRUE.equals(order.getSellerPaid()),
+                order.getSellerPaidAt(),
+                address != null ? trimToNull(address.getFullName()) : null,
+                address != null ? trimToNull(address.getPhone()) : null,
+                seller.sellerId(),
+                seller.sellerName(),
+                seller.sellerStoreName(),
+                seller.sellerIds()
+        );
+    }
+
+    private OrderSellerSnapshot resolveOrderSellerSnapshot(Order order) {
+        Set<Long> productIds = order.getItems().stream()
+                .map(OrderItem::getProductId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        if (productIds.isEmpty()) {
+            return new OrderSellerSnapshot(null, null, null, List.of());
+        }
+        Map<Long, Product> productById = productRepository.findAllById(productIds).stream()
+                .collect(Collectors.toMap(Product::getId, product -> product));
+        Map<Long, UserAccount> sellers = new LinkedHashMap<>();
+        order.getItems().forEach(item -> {
+            Long productId = item.getProductId();
+            if (productId == null) {
+                return;
+            }
+            Product product = productById.get(productId);
+            if (product == null || product.getSeller() == null || product.getSeller().getId() == null) {
+                return;
+            }
+            UserAccount seller = product.getSeller();
+            sellers.putIfAbsent(seller.getId(), seller);
+        });
+
+        List<Long> sellerIds = List.copyOf(sellers.keySet());
+        if (sellerIds.isEmpty()) {
+            return new OrderSellerSnapshot(null, null, null, List.of());
+        }
+        if (sellerIds.size() == 1) {
+            UserAccount seller = sellers.get(sellerIds.get(0));
+            return new OrderSellerSnapshot(
+                    seller.getId(),
+                    trimToNull(seller.getFullName()),
+                    trimToNull(seller.getStoreName()),
+                    sellerIds
+            );
+        }
+        String sellerNames = sellers.values().stream()
+                .map(UserAccount::getFullName)
+                .map(this::trimToNull)
+                .filter(name -> name != null)
+                .collect(Collectors.joining(", "));
+        return new OrderSellerSnapshot(
+                sellerIds.get(0),
+                sellerNames.isBlank() ? "Nhiều seller" : sellerNames,
+                "Nhiều seller",
+                sellerIds
+        );
+    }
+
     private OrderItem mapOrderItem(Order order, CartItem item, ProductVariant variant) {
         Product product = variant.getProduct();
         double unitPrice = resolveUnitPrice(variant);
@@ -504,6 +611,29 @@ public class OrderService {
         return resolveUnitPrice(variant) * quantity;
     }
 
+    private double calculateShippingFee(double subtotal, String city, String province) {
+        if (subtotal <= 0 || subtotal >= FREE_SHIPPING_THRESHOLD) {
+            return 0.0;
+        }
+
+        String region = normalizeRegion((city == null ? "" : city) + " " + (province == null ? "" : province));
+        if (region.contains("tp hcm") || region.contains("hcm") || region.contains("ho chi minh")) {
+            return BASE_SHIPPING_FEE;
+        }
+        if (region.contains("ha noi") || region.contains("hanoi")) {
+            return 40_000;
+        }
+        return 50_000;
+    }
+
+    private String normalizeRegion(String value) {
+        return java.text.Normalizer.normalize(value == null ? "" : value, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase()
+                .replaceAll("[^a-z0-9]+", " ")
+                .trim();
+    }
+
     private double resolveUnitPrice(ProductVariant variant) {
         if (variant.getPriceOverride() != null) {
             return variant.getPriceOverride();
@@ -532,6 +662,12 @@ public class OrderService {
         String datePart = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String randomPart = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
         return "WW-" + datePart + "-" + randomPart;
+    }
+
+    private Order.Status initialOrderStatus(Order.PaymentMethod paymentMethod) {
+        return paymentMethod == Order.PaymentMethod.COD
+                ? Order.Status.PROCESSING
+                : Order.Status.PENDING;
     }
 
     private Map<Long, Integer> collectCartQuantities(List<CartItem> cartItems) {
@@ -652,11 +788,25 @@ public class OrderService {
         throw new ResponseStatusException(FORBIDDEN, "Bạn không có quyền cập nhật đơn hàng");
     }
 
-    private void ensureWarehouseCanUpdateStatus(Order.Status nextStatus) {
-        if (nextStatus == Order.Status.PACKING || nextStatus == Order.Status.SHIPPED) {
+    private void ensureCanManageOrder(UserAccount user, Order order, Order.Status nextStatus) {
+        if (canBuyerConfirmReceipt(user, order, nextStatus)) {
             return;
         }
-        throw new ResponseStatusException(FORBIDDEN, "Kho chỉ được cập nhật trạng thái đóng gói hoặc bàn giao vận chuyển");
+        ensureCanManageOrder(user, order);
+    }
+
+    private boolean canBuyerConfirmReceipt(UserAccount user, Order order, Order.Status nextStatus) {
+        return user.getRole() == UserAccount.Role.USER
+                && order.getUser().getId().equals(user.getId())
+                && order.getStatus() == Order.Status.SHIPPED
+                && nextStatus == Order.Status.DELIVERED;
+    }
+
+    private void ensureWarehouseCanUpdateStatus(Order.Status nextStatus) {
+        if (nextStatus == Order.Status.PACKING) {
+            return;
+        }
+        throw new ResponseStatusException(FORBIDDEN, "Nhân viên chỉ được tạo vận đơn (chuyển sang trạng thái đóng gói)");
     }
 
     private void ensureCanEditOrder(UserAccount user, Order order) {
@@ -664,8 +814,7 @@ public class OrderService {
             return;
         }
         if (order.getUser().getId().equals(user.getId())) {
-            if (order.getStatus() == Order.Status.PENDING || order.getStatus() == Order.Status.CONFIRMED
-                    || order.getStatus() == Order.Status.PROCESSING) {
+            if (isAddressEditableStage(order.getStatus())) {
                 return;
             }
             throw new ResponseStatusException(BAD_REQUEST, "Không thể cập nhật thông tin đơn hàng");
@@ -675,7 +824,7 @@ public class OrderService {
                 if (isSellerEditableStage(order.getStatus())) {
                     return;
                 }
-                throw new ResponseStatusException(BAD_REQUEST, "Seller chỉ được cập nhật đơn trước khi qua kho");
+                throw new ResponseStatusException(BAD_REQUEST, "Chỉ được cập nhật địa chỉ trước khi đơn được xác nhận");
             }
         }
         throw new ResponseStatusException(FORBIDDEN, "Bạn không có quyền cập nhật đơn hàng");
@@ -686,8 +835,7 @@ public class OrderService {
             return;
         }
         if (order.getUser().getId().equals(user.getId())) {
-            if (order.getStatus() == Order.Status.PENDING || order.getStatus() == Order.Status.CONFIRMED
-                    || order.getStatus() == Order.Status.PROCESSING) {
+            if (order.getStatus() == Order.Status.PENDING) {
                 return;
             }
             throw new ResponseStatusException(BAD_REQUEST, "Không thể hủy đơn hàng");
@@ -703,8 +851,11 @@ public class OrderService {
 
     private boolean isSellerEditableStage(Order.Status status) {
         return status == Order.Status.PENDING
-                || status == Order.Status.PROCESSING
-                || status == Order.Status.CONFIRMED;
+                || status == Order.Status.PROCESSING;
+    }
+
+    private boolean isAddressEditableStage(Order.Status status) {
+        return status == Order.Status.PENDING;
     }
 
     private boolean isWarehouseSupportRole(UserAccount.Role role) {
@@ -730,7 +881,7 @@ public class OrderService {
 
     private void ensureSequentialStatusTransition(Order.Status current, Order.Status next) {
         boolean valid = switch (current) {
-            case PENDING -> next == Order.Status.PROCESSING;
+            case PENDING -> next == Order.Status.CONFIRMED;
             case PROCESSING -> next == Order.Status.CONFIRMED;
             case CONFIRMED -> next == Order.Status.PACKING;
             case PACKING -> next == Order.Status.SHIPPED;
@@ -739,14 +890,6 @@ public class OrderService {
         };
         if (!valid) {
             throw new ResponseStatusException(BAD_REQUEST, "Cập nhật trạng thái chưa đúng trình tự");
-        }
-    }
-
-    private void ensurePaymentReadyForShipping(Order order, Order.Status nextStatus) {
-        if ((nextStatus == Order.Status.SHIPPED || nextStatus == Order.Status.DELIVERED)
-                && order.getPaymentMethod() == Order.PaymentMethod.BANK_TRANSFER
-                && order.getPaymentStatus() != Order.PaymentStatus.PAID) {
-            throw new ResponseStatusException(BAD_REQUEST, "Cần xác nhận thanh toán chuyển khoản trước khi giao");
         }
     }
 
@@ -765,6 +908,13 @@ public class OrderService {
         order.setUpdatedAt(LocalDateTime.now());
         Order saved = orderRepository.save(order);
         return mapOrder(saved);
+    }
+
+    private void cancelExpiredUnpaidBankTransferOrder(Order order) {
+        if (!isExpiredUnpaidBankTransferOrder(order, LocalDateTime.now())) {
+            return;
+        }
+        cancelWithSideEffects(order);
     }
 
     private Order.Status parseStatus(String value) {
@@ -787,11 +937,51 @@ public class OrderService {
     }
 
     private void applyAutoStatusTransitions(List<Order> orders) {
-        // Order delivery must be confirmed by an authorized operator, not by a read-time timer.
+        orders.forEach(this::applyAutoStatusTransition);
     }
 
     private void applyAutoStatusTransition(Order order) {
-        // Kept for callers that previously synchronized demo automation.
+        LocalDateTime now = LocalDateTime.now();
+        if (isExpiredUnpaidBankTransferOrder(order, now)) {
+            cancelWithSideEffects(order);
+            return;
+        }
+        if (order.getStatus() == Order.Status.PACKING
+                && order.getUpdatedAt() != null
+                && order.getUpdatedAt().plusSeconds(5).isBefore(now)) {
+            order.setStatus(Order.Status.SHIPPED);
+            order.setUpdatedAt(now);
+            orderRepository.save(order);
+        }
+    }
+
+    private boolean isExpiredUnpaidBankTransferOrder(Order order, LocalDateTime now) {
+        if (order == null || order.getCreatedAt() == null) {
+            return false;
+        }
+        if (order.getPaymentMethod() != Order.PaymentMethod.BANK_TRANSFER
+                || order.getPaymentStatus() != Order.PaymentStatus.UNPAID) {
+            return false;
+        }
+        if (order.getStatus() == Order.Status.CANCELLED
+                || order.getStatus() == Order.Status.DELIVERED
+                || order.getStatus() == Order.Status.PACKING
+                || order.getStatus() == Order.Status.SHIPPED) {
+            return false;
+        }
+        return order.getCreatedAt().plusHours(resolveOrderAutoCancelHours()).isBefore(now);
+    }
+
+    private int resolveOrderAutoCancelHours() {
+        if (adminSystemConfigService == null) {
+            return DEFAULT_ORDER_AUTO_CANCEL_HOURS;
+        }
+        AdminSystemConfigResponse config = adminSystemConfigService.get();
+        if (config == null) {
+            return DEFAULT_ORDER_AUTO_CANCEL_HOURS;
+        }
+        Integer configured = config.orderAutoCancelHours();
+        return configured != null && configured > 0 ? configured : DEFAULT_ORDER_AUTO_CANCEL_HOURS;
     }
 
     private void validateCheckoutAddress(ShippingAddress address) {
@@ -813,6 +1003,17 @@ public class OrderService {
         address.setDistrict(trimToNull(address.getDistrict()));
         address.setProvince(trimToNull(address.getProvince()));
         address.setPostalCode(trimToNull(address.getPostalCode()));
+    }
+
+    private Long resolveCartSellerId(Cart cart) {
+        return cart.getItems().stream()
+                .map(CartItem::getVariant)
+                .filter(variant -> variant != null && variant.getProduct() != null)
+                .map(variant -> variant.getProduct().getSeller())
+                .filter(seller -> seller != null && seller.getId() != null)
+                .map(UserAccount::getId)
+                .findFirst()
+                .orElse(null);
     }
 
     private String requireText(String value, String message) {

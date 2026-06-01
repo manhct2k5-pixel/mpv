@@ -23,9 +23,13 @@ export interface StoreProductSummary {
   salePrice?: number | null;
   imageUrl?: string | null;
   featured?: boolean;
+  active?: boolean;
   averageRating?: number;
   reviewCount?: number;
   totalStockQty?: number | null;
+  sellerId?: number | null;
+  sellerName?: string | null;
+  sellerStoreName?: string | null;
 }
 
 export interface StoreProductVariant {
@@ -86,6 +90,14 @@ export interface OrderSummary {
   createdAt: string;
   updatedAt: string;
   deliveredAt?: string | null;
+  sellerPaid?: boolean | null;
+  sellerPaidAt?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  sellerId?: number | null;
+  sellerName?: string | null;
+  sellerStoreName?: string | null;
+  sellerIds?: number[] | null;
 }
 
 export interface OrderItem {
@@ -322,6 +334,10 @@ export interface ReturnRequest {
   evidenceUrl?: string | null;
   paymentStatus: string;
   shippingStatus: string;
+  sellerId?: number | null;
+  sellerName?: string | null;
+  sellerStoreName?: string | null;
+  sellerIds?: number[] | null;
   status: ReturnRequestStatus;
   verdict?: string | null;
   note?: string | null;
@@ -360,6 +376,27 @@ export interface VoucherValidationResult {
   type?: string | null;
   value?: number | null;
   minOrder?: number | null;
+  expireAt?: string | null;
+  active?: boolean;
+}
+
+export interface VoucherItem {
+  id: number;
+  code: string;
+  type: 'percent' | 'fixed';
+  value: number;
+  minOrder: number;
+  expireAt: string | null;
+  active: boolean;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface VoucherUpsertPayload {
+  code: string;
+  type: 'PERCENT' | 'FIXED';
+  value: number;
+  minOrder?: number;
   expireAt?: string | null;
   active?: boolean;
 }

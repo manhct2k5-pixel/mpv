@@ -134,6 +134,7 @@ const StaffLayout = () => {
           collapsed={collapsed}
           mobileOpen={mobileOpen}
           overview={overview ?? emptyOverview}
+          isAdmin={isAdmin}
           onCloseMobile={() => setMobileOpen(false)}
         />
 

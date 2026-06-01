@@ -12,6 +12,8 @@ public record AdminUserInsightResponse(
         LocalDateTime createdAt,
         long totalTransactions,
         long flagged,
-        long budgets
+        long budgets,
+        Boolean accountLocked,
+        Double walletBalance
 ) {
 }

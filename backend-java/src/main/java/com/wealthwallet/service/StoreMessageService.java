@@ -17,8 +17,13 @@ import com.wealthwallet.repository.UserAccountRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.text.Normalizer;
@@ -279,6 +284,10 @@ public class StoreMessageService {
     private final ProductRepository productRepository;
     private final StoreAssistantAiService storeAssistantAiService;
 
+    @Lazy
+    @Autowired
+    private StoreMessageService self;
+
     @Transactional(readOnly = true)
     public List<StoreMessagePartnerResponse> listPartners(UserAccount currentUser) {
         UserAccount.Role currentRole = currentUser.getRole();
@@ -378,7 +387,15 @@ public class StoreMessageService {
                 .build();
         StoreMessage saved = storeMessageRepository.save(message);
 
-        maybeSendAutoReply(currentUser, other, trimmedContent);
+        final long sndrId = currentUser.getId();
+        final long rcvrId = other.getId();
+        final String msgForReply = trimmedContent;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                self.asyncAutoReply(sndrId, rcvrId, msgForReply);
+            }
+        });
 
         return new StoreMessageResponse(
                 saved.getId(),
@@ -974,5 +991,18 @@ public class StoreMessageService {
                 .map(StoreMessageService::sanitizeForMatching)
                 .filter(keyword -> !keyword.isBlank())
                 .anyMatch(keyword -> paddedContent.contains(" " + keyword + " "));
+    }
+
+    @Async
+    @Transactional
+    public void asyncAutoReply(long senderId, long receiverId, String content) {
+        try {
+            UserAccount sender = userAccountRepository.findById(senderId).orElse(null);
+            UserAccount receiver = userAccountRepository.findById(receiverId).orElse(null);
+            if (sender == null || receiver == null) return;
+            maybeSendAutoReply(sender, receiver, content);
+        } catch (Exception ex) {
+            log.warn("Async AI auto-reply failed sender={}: {}", senderId, ex.getMessage());
+        }
     }
 }

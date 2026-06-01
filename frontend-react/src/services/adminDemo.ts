@@ -23,6 +23,8 @@ type AdminDemoState = {
   businessRequestDecisionById: Record<number, BusinessRequestDecision>;
   orderStatusById: Record<number, string>;
   orderPaymentStatusById: Record<number, string>;
+  sellerPaidByOrderId: Record<number, boolean>;
+  sellerPaidAtByOrderId: Record<number, string>;
   refundDecisionByOrderId: Record<number, RefundDecision>;
   createdCategories: AdminCategory[];
   categoryPatchById: Record<number, Partial<AdminCategory>>;
@@ -41,6 +43,8 @@ const defaultState = (): AdminDemoState => ({
   businessRequestDecisionById: {},
   orderStatusById: {},
   orderPaymentStatusById: {},
+  sellerPaidByOrderId: {},
+  sellerPaidAtByOrderId: {},
   refundDecisionByOrderId: {},
   createdCategories: [],
   categoryPatchById: {},
@@ -122,6 +126,7 @@ export const applyAdminDemoToUsers = (
       ...user,
       role,
       flagged: state.userFlagByEmail[email] ? 1 : 0,
+      accountLocked: Boolean(state.userFlagByEmail[email]),
       businessRequestPending: pendingRequestIds.has(user.id),
       businessRequestedAt: pendingRequestIds.has(user.id) ? user.businessRequestedAt : undefined
     });
@@ -142,7 +147,9 @@ export const applyAdminDemoToOrders = (baseOrders: OrderSummary[]): OrderSummary
   return baseOrders.map((order) => ({
     ...order,
     status: state.orderStatusById[order.id] ?? normalizeOrderStatus(order.status),
-    paymentStatus: state.orderPaymentStatusById[order.id] ?? normalizePaymentStatus(order.paymentStatus)
+    paymentStatus: state.orderPaymentStatusById[order.id] ?? normalizePaymentStatus(order.paymentStatus),
+    sellerPaid: state.sellerPaidByOrderId[order.id] ?? order.sellerPaid ?? false,
+    sellerPaidAt: state.sellerPaidAtByOrderId[order.id] ?? order.sellerPaidAt ?? null
   }));
 };
 
@@ -321,7 +328,9 @@ export const updateAdminDemoUserRole = (
     role: normalizedRole,
     totalTransactions: 0,
     flagged: 0,
-    budgets: 0
+    budgets: 0,
+    accountLocked: false,
+    walletBalance: 0
   };
 };
 
@@ -334,7 +343,7 @@ export const updateAdminDemoFlag = (email: string, highlight: boolean) => {
       [normalizedEmail]: highlight
     }
   }));
-  return { email: normalizedEmail, highlighted: highlight };
+  return { email: normalizedEmail, highlighted: highlight, accountLocked: highlight };
 };
 
 export const approveAdminDemoBusinessRequest = (
@@ -457,6 +466,38 @@ export const confirmAdminDemoOrderPayment = (baseOrders: OrderSummary[], id: num
       itemCount: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
+    }
+  );
+};
+
+export const releaseAdminDemoPaymentToSeller = (baseOrders: OrderSummary[], id: number): Order => {
+  const paidAt = new Date().toISOString();
+  updateState((state) => ({
+    ...state,
+    sellerPaidByOrderId: {
+      ...state.sellerPaidByOrderId,
+      [id]: true
+    },
+    sellerPaidAtByOrderId: {
+      ...state.sellerPaidAtByOrderId,
+      [id]: paidAt
+    }
+  }));
+
+  const updated = applyAdminDemoToOrders(baseOrders).find((order) => order.id === id);
+  return toOrderPayload(
+    updated ?? {
+      id,
+      orderNumber: `WW-DEMO-${id}`,
+      status: 'delivered',
+      paymentMethod: 'cod',
+      paymentStatus: 'paid',
+      total: 0,
+      itemCount: 0,
+      createdAt: paidAt,
+      updatedAt: paidAt,
+      sellerPaid: true,
+      sellerPaidAt: paidAt
     }
   );
 };

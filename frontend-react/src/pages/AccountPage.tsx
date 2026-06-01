@@ -23,6 +23,12 @@ const AccountPage = () => {
     storeAddress: '',
     storeDescription: ''
   });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
 
   const { data: profile, isLoading, isError } = useQuery({
     queryKey: ['profile'],
@@ -70,6 +76,17 @@ const AccountPage = () => {
     }
   });
 
+  const changePasswordMutation = useMutation({
+    mutationFn: financeApi.changePassword,
+    onSuccess: (response) => {
+      setPasswordMessage(response.message ?? 'Đã cập nhật mật khẩu mới.');
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    },
+    onError: (error: any) => {
+      setPasswordMessage(error.response?.data?.message ?? error.response?.data?.error ?? 'Không thể đổi mật khẩu.');
+    }
+  });
+
   const businessRequestValidationMessage = getSellerBusinessRequestValidationMessage(businessRequestForm);
 
   const handleLogout = async () => {
@@ -92,6 +109,23 @@ const AccountPage = () => {
     }
 
     requestBusinessAccessMutation.mutate(normalizeSellerBusinessRequestPayload(businessRequestForm));
+  };
+
+  const handlePasswordSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    setPasswordMessage(null);
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordMessage('Mật khẩu mới cần tối thiểu 8 ký tự.');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordMessage('Mật khẩu xác nhận chưa khớp.');
+      return;
+    }
+    changePasswordMutation.mutate({
+      currentPassword: passwordForm.currentPassword,
+      newPassword: passwordForm.newPassword
+    });
   };
 
   const primaryWorkspace = isAdmin
@@ -394,6 +428,72 @@ const AccountPage = () => {
               </button>
             </>
           )}
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-[1fr,0.8fr]">
+        <form
+          onSubmit={handlePasswordSubmit}
+          className="rounded-3xl border border-rose-200/70 bg-white/92 p-5 shadow-[0_12px_24px_rgba(148,163,184,0.14)] sm:p-6"
+        >
+          <div className="mb-4 flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-2xl border border-rose-200/70 bg-rose-50/70">
+              <ShieldCheck className="h-5 w-5 text-mocha" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-cocoa">Đổi mật khẩu</p>
+              <p className="text-xs text-cocoa/60">Cập nhật mật khẩu đăng nhập cho tài khoản hiện tại.</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <input
+              type="password"
+              value={passwordForm.currentPassword}
+              onChange={(event) => setPasswordForm((prev) => ({ ...prev, currentPassword: event.target.value }))}
+              required
+              className="rounded-2xl border border-rose-200/80 bg-white/90 px-4 py-2.5 text-sm text-cocoa"
+              placeholder="Mật khẩu cũ"
+            />
+            <input
+              type="password"
+              value={passwordForm.newPassword}
+              onChange={(event) => setPasswordForm((prev) => ({ ...prev, newPassword: event.target.value }))}
+              required
+              className="rounded-2xl border border-rose-200/80 bg-white/90 px-4 py-2.5 text-sm text-cocoa"
+              placeholder="Mật khẩu mới"
+            />
+            <input
+              type="password"
+              value={passwordForm.confirmPassword}
+              onChange={(event) => setPasswordForm((prev) => ({ ...prev, confirmPassword: event.target.value }))}
+              required
+              className="rounded-2xl border border-rose-200/80 bg-white/90 px-4 py-2.5 text-sm text-cocoa"
+              placeholder="Xác nhận mật khẩu"
+            />
+          </div>
+          <button
+            type="submit"
+            className="mt-4 btn-secondary !border-rose-200/80 !bg-white/90"
+            disabled={changePasswordMutation.isPending}
+          >
+            {changePasswordMutation.isPending ? 'Đang lưu...' : 'Lưu mật khẩu mới'}
+          </button>
+          {passwordMessage ? <p className="mt-3 text-xs text-cocoa/70">{passwordMessage}</p> : null}
+        </form>
+
+        <div className="rounded-3xl border border-rose-200/70 bg-white/92 p-5 shadow-[0_12px_24px_rgba(148,163,184,0.14)] sm:p-6">
+          <div className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-2xl border border-rose-200/70 bg-rose-50/70">
+              <Crown className="h-5 w-5 text-mocha" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-cocoa">Ví hoàn tiền</p>
+              <p className="text-xs text-cocoa/60">Số dư nhận từ các yêu cầu hoàn tiền đã được admin duyệt.</p>
+            </div>
+          </div>
+          <p className="mt-4 text-2xl font-semibold text-mocha">
+            {(profile.walletBalance ?? 0).toLocaleString('vi-VN')} đ
+          </p>
         </div>
       </section>
     </div>

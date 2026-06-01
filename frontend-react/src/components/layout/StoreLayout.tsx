@@ -4,6 +4,7 @@ import { Bell, Heart, LifeBuoy, Package, Search, ShoppingBag, Sparkles, UserRoun
 import { useQuery } from '@tanstack/react-query';
 import { financeApi, storeApi } from '../../services/api.ts';
 import { useAuthStore } from '../../store/auth.ts';
+import { readStoredGuestCartCount, useGuestCartStore } from '../../store/guestCart.ts';
 import { getRoutePrefetchHandlers } from '../../utils/routePrefetch';
 import { canUseShoppingFlow, normalizeRoleForAccess } from '../../utils/access';
 import { useUIStore } from '../../store/ui.ts';
@@ -22,6 +23,10 @@ const navLinks = [
 
 const StoreLayout = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const storeGuestCartCount = useGuestCartStore((state) =>
+    state.items.reduce((total, item) => total + Math.max(0, Number(item.quantity) || 0), 0)
+  );
+  const [storedGuestCartCount, setStoredGuestCartCount] = useState(readStoredGuestCartCount);
   const navigate = useNavigate();
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
@@ -73,12 +78,13 @@ const StoreLayout = () => {
     if (isAdmin) {
       return [
         { to: '/seller', label: 'Trang seller' },
-        { to: '/admin', label: 'Trang admin' }
+        { to: '/admin', label: 'Trang admin' },
+        { to: '/staff', label: 'Trang staff' }
       ];
     }
 
     if (isWarehouse) {
-      return [{ to: '/staff', label: 'Trang nhân viên' }];
+      return [{ to: '/seller/van-hanh', label: 'Trang vận hành' }];
     }
 
     if (isStoreManager) {
@@ -88,8 +94,33 @@ const StoreLayout = () => {
     return [];
   }, [hasResolvedProfile, isAdmin, isStoreManager, isWarehouse]);
   const showCustomerActions = !isAuthenticated || isCustomer;
-  const cartCount = cart?.items?.reduce((total, item) => total + item.quantity, 0) ?? 0;
+  const accountCartCount = useMemo(
+    () => cart?.items?.reduce((total, item) => total + item.quantity, 0) ?? 0,
+    [cart?.items]
+  );
+  const guestCartCount = Math.max(storeGuestCartCount, storedGuestCartCount);
+  const cartCount = isAuthenticated ? Math.max(accountCartCount, guestCartCount) : guestCartCount;
   const homePrefetchHandlers = getRoutePrefetchHandlers('home');
+
+  useEffect(() => {
+    const syncGuestCartCount = () => {
+      const liveCount = useGuestCartStore
+        .getState()
+        .items.reduce((total, item) => total + Math.max(0, Number(item.quantity) || 0), 0);
+      setStoredGuestCartCount(Math.max(liveCount, readStoredGuestCartCount()));
+    };
+
+    syncGuestCartCount();
+    window.addEventListener('guest-cart-updated', syncGuestCartCount);
+    window.addEventListener('storage', syncGuestCartCount);
+    window.addEventListener('focus', syncGuestCartCount);
+
+    return () => {
+      window.removeEventListener('guest-cart-updated', syncGuestCartCount);
+      window.removeEventListener('storage', syncGuestCartCount);
+      window.removeEventListener('focus', syncGuestCartCount);
+    };
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);

@@ -48,6 +48,9 @@ const AdminUsersPage = () => {
       setStatusMessage('Đã cập nhật vai trò tài khoản.');
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'overview'] });
+    },
+    onError: (error) => {
+      setStatusMessage(getApiErrorMessage(error, 'Không thể cập nhật vai trò tài khoản.'));
     }
   });
 
@@ -58,6 +61,9 @@ const AdminUsersPage = () => {
       setStatusMessage(payload.highlight ? 'Đã khóa tạm tài khoản (flagged).' : 'Đã mở khóa tài khoản.');
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'overview'] });
+    },
+    onError: (error) => {
+      setStatusMessage(getApiErrorMessage(error, 'Không thể cập nhật trạng thái khóa tài khoản.'));
     }
   });
 
@@ -276,7 +282,7 @@ const AdminUsersPage = () => {
                 {visibleUsers.map((user) => {
                   const normalizedRole = normalizeRole(user.role);
                   const draftRole = normalizeRole(roleDrafts[user.id] ?? user.role);
-                  const isLocked = (user.flagged ?? 0) > 0;
+                  const isLocked = Boolean(user.accountLocked);
                   const isUpdatingRole =
                     updateRoleMutation.isPending && updateRoleMutation.variables?.id === user.id;
                   const isUpdatingLock =
@@ -363,6 +369,7 @@ const AdminUsersPage = () => {
                             <p>Tổng giao dịch: {user.totalTransactions}</p>
                             <p>Ngân sách đang có: {user.budgets}</p>
                             <p>Số lần bị cảnh báo: {user.flagged}</p>
+                            <p>Ví hoàn tiền: {(user.walletBalance ?? 0).toLocaleString('vi-VN')} đ</p>
                             {pendingRequest ? (
                               <>
                                 <p className="mt-2 font-semibold text-[var(--admin-text)]">Hồ sơ seller đang chờ duyệt</p>

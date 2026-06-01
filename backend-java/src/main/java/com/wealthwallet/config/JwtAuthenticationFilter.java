@@ -42,7 +42,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                     logger.debug("JWT validated for user: " + username);
                 } else {
-                    logger.warn("Invalid JWT token");
+                    logger.debug("Invalid JWT token (xem JwtUtils để biết lý do cụ thể)");
                 }
             } else {
                 logger.debug("No JWT token found in request");

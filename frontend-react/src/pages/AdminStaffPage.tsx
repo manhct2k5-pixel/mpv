@@ -55,6 +55,9 @@ const AdminStaffPage = () => {
       setStatusMessage('Đã cập nhật quyền Staff.');
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'overview'] });
+    },
+    onError: (error: any) => {
+      setStatusMessage(error.response?.data?.message || error.response?.data?.error || 'Không thể cập nhật quyền Staff.');
     }
   });
 
@@ -65,6 +68,9 @@ const AdminStaffPage = () => {
       setStatusMessage(payload.highlight ? 'Đã khóa tạm tài khoản Staff.' : 'Đã mở khóa tài khoản Staff.');
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'overview'] });
+    },
+    onError: (error: any) => {
+      setStatusMessage(error.response?.data?.message || error.response?.data?.error || 'Không thể cập nhật trạng thái khóa tài khoản Staff.');
     }
   });
 
@@ -191,7 +197,7 @@ const AdminStaffPage = () => {
               </thead>
               <tbody>
                 {staffUsers.map((user) => {
-                  const isLocked = (user.flagged ?? 0) > 0;
+                  const isLocked = Boolean(user.accountLocked);
                   const draftDepartment = departmentDrafts[user.id] ?? 'Vận hành';
                   const isUpdatingLock =
                     lockMutation.isPending && lockMutation.variables?.email?.toLowerCase() === user.email.toLowerCase();

@@ -1,6 +1,7 @@
 package com.wealthwallet.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record OrderSummaryResponse(
         Long id,
@@ -12,6 +13,14 @@ public record OrderSummaryResponse(
         Integer itemCount,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
-        LocalDateTime deliveredAt
+        LocalDateTime deliveredAt,
+        Boolean sellerPaid,
+        LocalDateTime sellerPaidAt,
+        String customerName,
+        String customerPhone,
+        Long sellerId,
+        String sellerName,
+        String sellerStoreName,
+        List<Long> sellerIds
 ) {
 }

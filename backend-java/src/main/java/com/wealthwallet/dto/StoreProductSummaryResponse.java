@@ -10,8 +10,12 @@ public record StoreProductSummaryResponse(
         Double salePrice,
         String imageUrl,
         Boolean featured,
+        Boolean active,
         Double averageRating,
         Integer reviewCount,
-        Integer totalStockQty
+        Integer totalStockQty,
+        Long sellerId,
+        String sellerName,
+        String sellerStoreName
 ) {
 }

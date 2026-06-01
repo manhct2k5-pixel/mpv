@@ -98,7 +98,11 @@ public class JwtUtils {
                     .build()
                     .parseClaimsJws(token);
             return true;
+        } catch (ExpiredJwtException e) {
+            log.debug("JWT đã hết hạn: {}", e.getMessage());
+            return false;
         } catch (JwtException | IllegalArgumentException e) {
+            log.debug("JWT không hợp lệ: {}", e.getMessage());
             return false;
         }
     }

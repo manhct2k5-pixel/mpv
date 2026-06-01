@@ -12,6 +12,7 @@ import com.wealthwallet.dto.ReturnRequestUpdateRequest;
 import com.wealthwallet.repository.OrderRepository;
 import com.wealthwallet.repository.ProductRepository;
 import com.wealthwallet.repository.ReturnRequestRepository;
+import com.wealthwallet.repository.UserAccountRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -47,6 +48,9 @@ class ReturnRequestServiceTest {
 
     @Mock
     private AdminSystemConfigService adminSystemConfigService;
+
+    @Mock
+    private UserAccountRepository userAccountRepository;
 
     @InjectMocks
     private ReturnRequestService returnRequestService;

@@ -1,0 +1,232 @@
+{
+  "baseUrl": "http://127.0.0.1:5173",
+  "apiBase": "http://127.0.0.1:8080/api",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "productSlug": "set-weekend-sand",
+  "deliveredOrderId": 22,
+  "successOrderId": 28,
+  "captures": [
+    {
+      "section": "NGƯỜI SD",
+      "title": "Tra cứu sản phẩm",
+      "path": "/san-pham",
+      "file": "01-nguoi-sd-tra-cuu-san-pham.png",
+      "finalUrl": "http://127.0.0.1:5173/san-pham",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/01-nguoi-sd-tra-cuu-san-pham.png"
+    },
+    {
+      "section": "NGƯỜI SD",
+      "title": "Đăng nhập",
+      "path": "/login",
+      "file": "02-nguoi-sd-dang-nhap.png",
+      "finalUrl": "http://127.0.0.1:5173/login",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/02-nguoi-sd-dang-nhap.png"
+    },
+    {
+      "section": "NGƯỜI SD",
+      "title": "Đăng xuất",
+      "path": "/tai-khoan",
+      "auth": "customer",
+      "file": "03-nguoi-sd-dang-xuat.png",
+      "finalUrl": "http://127.0.0.1:5173/tai-khoan",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/03-nguoi-sd-dang-xuat.png"
+    },
+    {
+      "section": "KH",
+      "title": "Theo dõi và đánh giá",
+      "path": "/don-hang/22",
+      "auth": "customer",
+      "file": "04-kh-theo-doi-va-danh-gia.png",
+      "finalUrl": "http://127.0.0.1:5173/don-hang/22",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/04-kh-theo-doi-va-danh-gia.png"
+    },
+    {
+      "section": "KH",
+      "title": "Quản lý giỏ hàng",
+      "path": "/gio-hang",
+      "auth": "customer",
+      "file": "05-kh-quan-ly-gio-hang.png",
+      "finalUrl": "http://127.0.0.1:5173/gio-hang",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/05-kh-quan-ly-gio-hang.png"
+    },
+    {
+      "section": "KH",
+      "title": "Tra cứu sản phẩm",
+      "path": "/san-pham",
+      "auth": "customer",
+      "file": "06-kh-tra-cuu-san-pham.png",
+      "finalUrl": "http://127.0.0.1:5173/san-pham",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/06-kh-tra-cuu-san-pham.png"
+    },
+    {
+      "section": "KH",
+      "title": "Đặt hàng",
+      "path": "/thanh-toan",
+      "auth": "customer",
+      "file": "07-kh-dat-hang.png",
+      "finalUrl": "http://127.0.0.1:5173/thanh-toan",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/07-kh-dat-hang.png",
+      "routePath": "/thanh-toan",
+      "note": "Bước đặt hàng: nhập thông tin nhận hàng và bấm đặt hàng."
+    },
+    {
+      "section": "KH",
+      "title": "Thanh toán",
+      "path": "/don-hang/16",
+      "auth": "customer",
+      "file": "08-kh-thanh-toan.png",
+      "finalUrl": "http://127.0.0.1:5173/don-hang/16",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/08-kh-thanh-toan.png",
+      "routePath": "/don-hang/16",
+      "note": "Bước thanh toán chuyển khoản: hiển thị mã QR và thông tin chuyển khoản."
+    },
+    {
+      "section": "admin",
+      "title": "Tổng quan",
+      "path": "/admin",
+      "auth": "admin",
+      "file": "09-admin-tong-quan.png",
+      "finalUrl": "http://127.0.0.1:5173/admin",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/09-admin-tong-quan.png"
+    },
+    {
+      "section": "admin",
+      "title": "Quản lý người dùng",
+      "path": "/admin/users",
+      "auth": "admin",
+      "file": "10-admin-quan-ly-nguoi-dung.png",
+      "finalUrl": "http://127.0.0.1:5173/admin/users",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/10-admin-quan-ly-nguoi-dung.png"
+    },
+    {
+      "section": "admin",
+      "title": "Quản lý staff",
+      "path": "/admin/staff",
+      "auth": "admin",
+      "file": "11-admin-quan-ly-staff.png",
+      "finalUrl": "http://127.0.0.1:5173/admin/staff",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/11-admin-quan-ly-staff.png"
+    },
+    {
+      "section": "admin",
+      "title": "Phân quyền",
+      "path": "/admin/permissions",
+      "auth": "admin",
+      "file": "12-admin-phan-quyen.png",
+      "finalUrl": "http://127.0.0.1:5173/admin/permissions",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/12-admin-phan-quyen.png"
+    },
+    {
+      "section": "admin",
+      "title": "Báo cáo",
+      "path": "/admin/reports",
+      "auth": "admin",
+      "file": "13-admin-bao-cao.png",
+      "finalUrl": "http://127.0.0.1:5173/admin/reports",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/13-admin-bao-cao.png"
+    },
+    {
+      "section": "Nhân viên",
+      "title": "Dashboard",
+      "path": "/staff",
+      "auth": "staff",
+      "file": "14-nhan-vien-dashboard.png",
+      "finalUrl": "http://127.0.0.1:5173/staff",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/14-nhan-vien-dashboard.png"
+    },
+    {
+      "section": "Nhân viên",
+      "title": "Xử lý đơn hàng",
+      "path": "/staff/orders",
+      "auth": "staff",
+      "file": "15-nhan-vien-xu-ly-don-hang.png",
+      "finalUrl": "http://127.0.0.1:5173/staff/orders",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/15-nhan-vien-xu-ly-don-hang.png"
+    },
+    {
+      "section": "Nhân viên",
+      "title": "Đổi trả",
+      "path": "/staff/returns",
+      "auth": "staff",
+      "file": "16-nhan-vien-doi-tra.png",
+      "finalUrl": "http://127.0.0.1:5173/staff/returns",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/16-nhan-vien-doi-tra.png"
+    },
+    {
+      "section": "Nhân viên",
+      "title": "Cập nhật trạng thái đơn",
+      "path": "/staff/status",
+      "auth": "staff",
+      "file": "17-nhan-vien-cap-nhat-trang-thai-don.png",
+      "finalUrl": "http://127.0.0.1:5173/staff/status",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/17-nhan-vien-cap-nhat-trang-thai-don.png"
+    },
+    {
+      "section": "Nhân viên",
+      "title": "Hồ sơ cá nhân",
+      "path": "/staff/profile",
+      "auth": "staff",
+      "file": "18-nhan-vien-ho-so-ca-nhan.png",
+      "finalUrl": "http://127.0.0.1:5173/staff/profile",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/18-nhan-vien-ho-so-ca-nhan.png"
+    },
+    {
+      "section": "người bán",
+      "title": "Tổng quan",
+      "path": "/seller",
+      "auth": "seller",
+      "file": "19-nguoi-ban-tong-quan.png",
+      "finalUrl": "http://127.0.0.1:5173/seller",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/19-nguoi-ban-tong-quan.png"
+    },
+    {
+      "section": "người bán",
+      "title": "Sản phẩm",
+      "path": "/seller/san-pham",
+      "auth": "seller",
+      "file": "20-nguoi-ban-san-pham.png",
+      "finalUrl": "http://127.0.0.1:5173/seller/san-pham",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/20-nguoi-ban-san-pham.png"
+    },
+    {
+      "section": "người bán",
+      "title": "Đơn hàng",
+      "path": "/seller/don-hang",
+      "auth": "seller",
+      "file": "21-nguoi-ban-don-hang.png",
+      "finalUrl": "http://127.0.0.1:5173/seller/don-hang",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/21-nguoi-ban-don-hang.png"
+    },
+    {
+      "section": "người bán",
+      "title": "Báo cáo",
+      "path": "/seller/bao-cao",
+      "auth": "seller",
+      "file": "22-nguoi-ban-bao-cao.png",
+      "finalUrl": "http://127.0.0.1:5173/seller/bao-cao",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/22-nguoi-ban-bao-cao.png"
+    },
+    {
+      "section": "người bán",
+      "title": "Đánh giá và phản hồi",
+      "path": "/seller/danh-gia",
+      "auth": "seller",
+      "file": "23-nguoi-ban-danh-gia-va-phan-hoi.png",
+      "finalUrl": "http://127.0.0.1:5173/seller/danh-gia",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/23-nguoi-ban-danh-gia-va-phan-hoi.png"
+    },
+    {
+      "section": "người bán",
+      "title": "Đăng kí thành người bán",
+      "path": "/seller/register",
+      "file": "24-nguoi-ban-dang-ki-thanh-nguoi-ban.png",
+      "finalUrl": "http://127.0.0.1:5173/seller/register",
+      "outputPath": "/mnt/d/Test - Copy (1)/docs/giao-dien-web-doc/screenshots/24-nguoi-ban-dang-ki-thanh-nguoi-ban.png"
+    }
+  ],
+  "fixedAt": "2026-05-08T13:40:46.938Z",
+  "bankTransferPaymentOrderId": 16
+}

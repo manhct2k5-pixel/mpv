@@ -5,6 +5,7 @@ import com.wealthwallet.domain.entity.CartItem;
 import com.wealthwallet.domain.entity.Product;
 import com.wealthwallet.domain.entity.ProductVariant;
 import com.wealthwallet.domain.entity.UserAccount;
+import com.wealthwallet.domain.entity.Voucher;
 import com.wealthwallet.dto.CartItemRequest;
 import com.wealthwallet.repository.CartRepository;
 import com.wealthwallet.repository.ProductVariantRepository;
@@ -20,6 +21,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -64,6 +67,35 @@ class CartServiceTest {
                     assertThat(exception.getStatusCode()).isEqualTo(BAD_REQUEST);
                     assertThat(exception.getReason()).contains("một shop");
                 });
+    }
+
+    @Test
+    void applyVoucher_shouldValidateAgainstCartSeller() {
+        UserAccount customer = user(1L, UserAccount.Role.USER);
+        UserAccount seller = user(10L, UserAccount.Role.SELLER);
+        ProductVariant variant = variant(100L, product(200L, seller));
+        Voucher voucher = Voucher.builder()
+                .id(1L)
+                .code("SELLER10")
+                .type(Voucher.Type.PERCENT)
+                .value(10d)
+                .active(true)
+                .build();
+
+        Cart cart = Cart.builder()
+                .id(20L)
+                .user(customer)
+                .items(new ArrayList<>())
+                .build();
+        cart.getItems().add(CartItem.builder().id(30L).cart(cart).variant(variant).quantity(1).build());
+
+        when(cartRepository.findByUser(customer)).thenReturn(Optional.of(cart));
+        when(voucherService.getValidVoucherOrThrow("SELLER10", 100_000d, seller.getId())).thenReturn(voucher);
+
+        cartService.applyVoucher(customer, "SELLER10");
+
+        verify(voucherService).getValidVoucherOrThrow(eq("SELLER10"), eq(100_000d), eq(seller.getId()));
+        assertThat(cart.getAppliedVoucher()).isEqualTo(voucher);
     }
 
     private ProductVariant variant(Long id, Product product) {

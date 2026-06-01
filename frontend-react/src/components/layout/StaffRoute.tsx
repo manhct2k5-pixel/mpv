@@ -6,7 +6,7 @@ interface StaffRouteProps {
   children: React.ReactNode;
 }
 
-const STAFF_ROLES = new Set(['admin', 'warehouse']);
+const ALLOWED_ROLES = new Set(['warehouse', 'admin']);
 
 const StaffRoute = ({ children }: StaffRouteProps) => {
   const { data: profile, isLoading, isError } = useQuery({
@@ -16,13 +16,14 @@ const StaffRoute = ({ children }: StaffRouteProps) => {
   });
 
   if (isLoading) {
-    return <div className="px-4 py-6 text-sm text-slate-500">Đang tải quyền staff...</div>;
+    return <div className="px-4 py-6 text-sm text-slate-500">Đang tải...</div>;
   }
 
   const role = (profile?.role ?? '').toLowerCase();
   const normalizedRole = role === 'styles' ? 'warehouse' : role;
-  if (isError || !STAFF_ROLES.has(normalizedRole)) {
-    return <Navigate to="/seller" replace />;
+
+  if (isError || !ALLOWED_ROLES.has(normalizedRole)) {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

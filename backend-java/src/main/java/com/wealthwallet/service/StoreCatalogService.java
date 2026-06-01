@@ -4,6 +4,7 @@ import com.wealthwallet.domain.entity.Category;
 import com.wealthwallet.domain.entity.Gender;
 import com.wealthwallet.domain.entity.Product;
 import com.wealthwallet.domain.entity.ProductVariant;
+import com.wealthwallet.domain.entity.UserAccount;
 import com.wealthwallet.dto.PaginatedResponse;
 import com.wealthwallet.dto.StoreCategoryResponse;
 import com.wealthwallet.dto.StoreProductDetailResponse;
@@ -97,6 +98,7 @@ public class StoreCatalogService {
                 product.getGender().name().toLowerCase(),
                 product.getBasePrice(),
                 product.getSalePrice(),
+                product.getActive(),
                 product.getAverageRating(),
                 product.getReviewCount(),
                 product.getDescription(),
@@ -104,7 +106,10 @@ public class StoreCatalogService {
                 product.getMaterial(),
                 product.getFit(),
                 normalizeImageUrls(product.getImageUrls()),
-                variants
+                variants,
+                sellerId(product),
+                sellerName(product),
+                sellerStoreName(product)
         );
     }
 
@@ -130,10 +135,29 @@ public class StoreCatalogService {
                 product.getSalePrice(),
                 pickPrimaryImage(product),
                 product.getFeatured(),
+                product.getActive(),
                 product.getAverageRating(),
                 product.getReviewCount(),
-                totalStock(product)
+                totalStock(product),
+                sellerId(product),
+                sellerName(product),
+                sellerStoreName(product)
         );
+    }
+
+    private Long sellerId(Product product) {
+        UserAccount seller = product.getSeller();
+        return seller != null ? seller.getId() : null;
+    }
+
+    private String sellerName(Product product) {
+        UserAccount seller = product.getSeller();
+        return seller != null ? normalizeImageUrl(seller.getFullName()) : null;
+    }
+
+    private String sellerStoreName(Product product) {
+        UserAccount seller = product.getSeller();
+        return seller != null ? normalizeImageUrl(seller.getStoreName()) : null;
     }
 
     private StoreProductVariantResponse mapVariant(ProductVariant variant) {

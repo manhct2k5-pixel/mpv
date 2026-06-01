@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Heart, Minus, Plus, Shirt, ShoppingBag, Star } from 'lucide-react';
 import { financeApi, storeApi } from '../services/api.ts';
 import { useAuthStore } from '../store/auth.ts';
+import { useGuestCartStore } from '../store/guestCart.ts';
 import ProductImage from '../components/store/ProductImage';
 import { canUseShoppingFlow, isCustomerRole } from '../utils/access';
 
@@ -12,6 +13,7 @@ const ProductDetailPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const addGuestItem = useGuestCartStore((state) => state.addItem);
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [selectedColor, setSelectedColor] = useState<string>('');
@@ -174,7 +176,6 @@ const ProductDetailPage = () => {
   const displayPrice = hasSale ? product?.salePrice : product?.basePrice;
   const formatPrice = (value?: number | null) =>
     value != null ? `${value.toLocaleString('vi-VN')} đ` : '--';
-  const canPurchase = Boolean(selectedVariant && selectedVariant.stockQty > 0);
   const formatStockChip = (stockQty: number) => (stockQty > 0 ? `Còn ${stockQty}` : 'Hết hàng');
 
   const addMutation = useMutation({
@@ -199,19 +200,7 @@ const ProductDetailPage = () => {
     }
   });
 
-  const validatePurchaseAction = () => {
-    if (!isAuthenticated) {
-      navigate('/login');
-      return false;
-    }
-    if (profileLoading) {
-      setStatusMessage({ tone: 'error', text: 'Đang tải quyền tài khoản, vui lòng thử lại sau vài giây.' });
-      return false;
-    }
-    if (!canShop) {
-      setStatusMessage({ tone: 'error', text: 'Thêm vào giỏ chỉ dành cho tài khoản khách hàng.' });
-      return false;
-    }
+  const validateVariantSelection = () => {
     if (!selectedVariant) {
       setStatusMessage({ tone: 'error', text: 'Vui lòng chọn size/màu trước khi thêm giỏ.' });
       return false;
@@ -223,15 +212,54 @@ const ProductDetailPage = () => {
     return true;
   };
 
+  const addSelectedVariantToGuestCart = () => {
+    if (!selectedVariant) return;
+    addGuestItem({
+      variantId: selectedVariant.id,
+      productId: product?.id,
+      productName: product?.name,
+      productSlug: product?.slug,
+      imageUrl: selectedVariant.imageUrl ?? product?.imageUrl,
+      size: selectedVariant.size,
+      color: selectedVariant.color,
+      unitPrice: selectedVariant.price,
+      quantity
+    });
+  };
+
   const handleAddToCart = () => {
-    if (!validatePurchaseAction() || !selectedVariant) {
+    if (!validateVariantSelection() || !selectedVariant) return;
+
+    if (!isAuthenticated) {
+      addSelectedVariantToGuestCart();
+      setStatusMessage({ tone: 'success', text: 'Đã thêm vào giỏ hàng.' });
+      return;
+    }
+
+    if (profileLoading) {
+      setStatusMessage({ tone: 'error', text: 'Đang tải quyền tài khoản, vui lòng thử lại sau vài giây.' });
+      return;
+    }
+    if (!canShop) {
+      setStatusMessage({ tone: 'error', text: 'Thêm vào giỏ chỉ dành cho tài khoản khách hàng.' });
       return;
     }
     addMutation.mutate({ variantId: selectedVariant.id, quantity });
   };
 
   const handleBuyNow = () => {
-    if (!validatePurchaseAction() || !selectedVariant) {
+    if (!validateVariantSelection() || !selectedVariant) return;
+    if (!isAuthenticated) {
+      addSelectedVariantToGuestCart();
+      navigate(`/login?next=${encodeURIComponent('/thanh-toan')}`);
+      return;
+    }
+    if (profileLoading) {
+      setStatusMessage({ tone: 'error', text: 'Đang tải quyền tài khoản, vui lòng thử lại sau vài giây.' });
+      return;
+    }
+    if (!canShop) {
+      setStatusMessage({ tone: 'error', text: 'Chức năng này chỉ dành cho tài khoản khách hàng.' });
       return;
     }
     addMutation.mutate(
@@ -266,6 +294,7 @@ const ProductDetailPage = () => {
       setStatusMessage({ tone: 'error', text: 'Wishlist chỉ dành cho tài khoản khách hàng.' });
       return;
     }
+    if (!product) return;
     wishlistMutation.mutate({ productId: product.id, remove: isWishlisted });
   };
 
@@ -495,7 +524,7 @@ const ProductDetailPage = () => {
               type="button"
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-rose-400 to-orange-300 px-5 py-2.5 text-sm font-semibold text-white transition hover:from-rose-500 hover:to-orange-400"
               onClick={handleAddToCart}
-              disabled={!canPurchase || addMutation.isPending}
+              disabled={addMutation.isPending}
             >
               <ShoppingBag className="h-4 w-4" />
               {addMutation.isPending ? 'Đang thêm...' : 'Thêm vào giỏ'}
@@ -504,7 +533,7 @@ const ProductDetailPage = () => {
               type="button"
               className="btn-secondary !border-rose-200/80 !bg-white/90"
               onClick={handleBuyNow}
-              disabled={!canPurchase || addMutation.isPending}
+              disabled={addMutation.isPending}
             >
               Mua ngay
             </button>
@@ -559,6 +588,12 @@ const ProductDetailPage = () => {
             <p>
               <span className="font-semibold text-cocoa">Thương hiệu:</span> {product.brand ?? 'Mộc Mầm'}
             </p>
+            {(product.sellerStoreName || product.sellerName) && (
+              <p>
+                <span className="font-semibold text-cocoa">Gian hàng:</span>{' '}
+                {product.sellerStoreName || product.sellerName}
+              </p>
+            )}
           </div>
         </div>
         </div>

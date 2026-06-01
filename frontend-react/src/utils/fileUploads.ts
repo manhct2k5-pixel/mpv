@@ -1,4 +1,5 @@
 const MAX_IMAGE_DIMENSION = 1440;
+const MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024;
 const OUTPUT_QUALITY = 0.82;
 
 const readFileAsDataUrl = (file: File) =>
@@ -49,5 +50,9 @@ const toOptimizedDataUrl = async (file: File) => {
 
 export const readFilesAsDataUrls = async (files: FileList | File[]) => {
   const entries = Array.from(files ?? []).filter((file) => file.type.startsWith('image/'));
+  const oversizedFile = entries.find((file) => file.size > MAX_IMAGE_FILE_SIZE);
+  if (oversizedFile) {
+    throw new Error(`Ảnh "${oversizedFile.name}" vượt quá 5MB. Vui lòng chọn ảnh nhẹ hơn.`);
+  }
   return Promise.all(entries.map(toOptimizedDataUrl));
 };

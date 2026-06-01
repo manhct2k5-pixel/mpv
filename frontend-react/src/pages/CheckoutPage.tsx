@@ -22,6 +22,28 @@ type SavedAddressPayload = {
 
 const normalizeAddressValue = (value?: string | null) => value?.trim() ?? '';
 
+const normalizeRegion = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const calculateRegionalShippingFee = (subtotal: number, city: string, province: string) => {
+  if (subtotal <= 0 || subtotal >= 500_000) {
+    return 0;
+  }
+  const region = normalizeRegion(`${city} ${province}`);
+  if (region.includes('tp hcm') || region.includes('hcm') || region.includes('ho chi minh')) {
+    return 30_000;
+  }
+  if (region.includes('ha noi') || region.includes('hanoi')) {
+    return 40_000;
+  }
+  return 50_000;
+};
+
 const savedAddressMatches = (address: UserAddress, payload: SavedAddressPayload) =>
   normalizeAddressValue(address.fullName) === normalizeAddressValue(payload.fullName) &&
   normalizeAddressValue(address.phone) === normalizeAddressValue(payload.phone) &&
@@ -75,6 +97,8 @@ const CheckoutPage = () => {
   const [hasHydratedAddress, setHasHydratedAddress] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [voucherCode, setVoucherCode] = useState('');
+  const [voucherMessage, setVoucherMessage] = useState<string | null>(null);
   const transferContentSuggestion = formData.phone.trim()
     ? `MOCMAM ${formData.phone.trim()}`
     : 'MOCMAM SO_DIEN_THOAI';
@@ -187,11 +211,36 @@ const CheckoutPage = () => {
     }
   });
 
+  const applyVoucherMutation = useMutation({
+    mutationFn: (code: string) => storeApi.applyCartVoucher(code),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['store-cart'], data);
+      setVoucherMessage(`Đã áp dụng voucher ${data.appliedVoucherCode ?? voucherCode.trim().toUpperCase()}.`);
+      setVoucherCode('');
+    },
+    onError: (error: any) => {
+      setVoucherMessage(error.response?.data?.message ?? 'Mã voucher không hợp lệ.');
+    }
+  });
+
+  const removeVoucherMutation = useMutation({
+    mutationFn: () => storeApi.removeCartVoucher(),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['store-cart'], data);
+      setVoucherMessage('Đã bỏ mã voucher.');
+    },
+    onError: (error: any) => {
+      setVoucherMessage(error.response?.data?.message ?? 'Không thể bỏ voucher.');
+    }
+  });
+
   const formatPrice = (value?: number | null) =>
     value != null ? `${value.toLocaleString('vi-VN')} đ` : '--';
   const subtotalBeforeDiscount = cart?.subtotalBeforeDiscount ?? cart?.subtotal ?? 0;
   const voucherDiscount = cart?.voucherDiscount ?? cart?.discount ?? 0;
-  const qrAmount = cart?.total ?? 0;
+  const checkoutShippingFee = calculateRegionalShippingFee(subtotalBeforeDiscount, formData.city, formData.province);
+  const checkoutTotal = Math.max(0, subtotalBeforeDiscount - voucherDiscount + checkoutShippingFee);
+  const qrAmount = checkoutTotal;
   const qrImageUrl = buildVietQrUrl(qrAmount, transferContentSuggestion);
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -501,7 +550,7 @@ const CheckoutPage = () => {
                     <span className="font-semibold">{transferContentSuggestion}</span>
                   </p>
                   <p className="mt-2 text-xs text-cocoa/60">
-                    Sau khi chuyển khoản hoặc quét QR, đơn sẽ chờ admin hoặc nhân viên xác nhận thanh toán trước khi giao hàng.
+                    Sau khi chuyển khoản hoặc quét QR, đơn sẽ chờ admin xác nhận thanh toán trước khi giao hàng.
                   </p>
                 </div>
               </div>
@@ -530,6 +579,36 @@ const CheckoutPage = () => {
               </div>
             ))}
           </div>
+          <div className="space-y-2 rounded-2xl border border-rose-200/70 bg-rose-50/40 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-cocoa/60">Mã giảm giá</p>
+            <div className="flex gap-2">
+              <input
+                value={voucherCode}
+                onChange={(e) => setVoucherCode(e.target.value)}
+                placeholder="Nhập mã voucher"
+                className="w-full rounded-xl border border-rose-200/80 bg-white/90 px-3 py-2 text-sm text-cocoa outline-none focus:border-rose-400"
+              />
+              <button
+                type="button"
+                className="btn-secondary btn-secondary--sm !border-rose-200/80 !bg-white/90"
+                onClick={() => applyVoucherMutation.mutate(voucherCode.trim())}
+                disabled={applyVoucherMutation.isPending || voucherCode.trim().length === 0}
+              >
+                Áp dụng
+              </button>
+            </div>
+            {cart.appliedVoucherCode ? (
+              <button
+                type="button"
+                className="btn-secondary btn-secondary--sm !border-rose-200/80 !bg-white/90"
+                onClick={() => removeVoucherMutation.mutate()}
+                disabled={removeVoucherMutation.isPending}
+              >
+                {removeVoucherMutation.isPending ? 'Đang bỏ...' : `Bỏ mã ${cart.appliedVoucherCode}`}
+              </button>
+            ) : null}
+            {voucherMessage ? <p className="text-xs text-cocoa/70">{voucherMessage}</p> : null}
+          </div>
           <div className="flex items-center justify-between text-sm text-cocoa/70">
             <span>Tạm tính trước giảm</span>
             <span>{formatPrice(subtotalBeforeDiscount)}</span>
@@ -546,11 +625,11 @@ const CheckoutPage = () => {
           </div>
           <div className="flex items-center justify-between text-sm text-cocoa/70">
             <span>Phí vận chuyển</span>
-            <span>{formatPrice(cart.shippingFee)}</span>
+            <span>{formatPrice(checkoutShippingFee)}</span>
           </div>
           <div className="flex items-center justify-between border-t border-caramel/30 pt-3 text-base font-semibold text-mocha">
             <span>Tổng cộng</span>
-            <span>{formatPrice(cart.total)}</span>
+            <span>{formatPrice(checkoutTotal)}</span>
           </div>
           <button type="submit" className="btn-primary w-full" disabled={orderMutation.isPending}>
             {orderMutation.isPending ? 'Đang xử lý...' : 'Đặt hàng ngay'}

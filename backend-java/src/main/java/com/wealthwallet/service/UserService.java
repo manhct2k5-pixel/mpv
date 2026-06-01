@@ -5,6 +5,7 @@ import com.wealthwallet.domain.entity.UserAccount;
 import com.wealthwallet.dto.AdminCreateStaffRequest;
 import com.wealthwallet.dto.BusinessRequestCreateRequest;
 import com.wealthwallet.dto.ChangePasswordRequest;
+import com.wealthwallet.dto.ForgotPasswordRequest;
 import com.wealthwallet.dto.LoginRequest;
 import com.wealthwallet.dto.RegisterRequest;
 import com.wealthwallet.dto.SellerRegisterRequest;
@@ -40,6 +41,9 @@ public class UserService implements UserDetailsService {
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         UserAccount user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
+        if (Boolean.TRUE.equals(user.getAccountLocked())) {
+            throw new UsernameNotFoundException("Account locked: " + email);
+        }
 
         return User.builder()
                 .username(user.getEmail())
@@ -116,10 +120,22 @@ public class UserService implements UserDetailsService {
     public String login(LoginRequest request) {
         String normalizedEmail = normalizeEmail(request.email());
         UserAccount user = userRepository.findByEmail(normalizedEmail)
-                .filter(u -> passwordEncoder.matches(request.password(), u.getPasswordHash()))
-                .orElseThrow(() -> new IllegalArgumentException("Invalid email or password"));
+                .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại"));
+        if (Boolean.TRUE.equals(user.getAccountLocked())) {
+            throw new IllegalStateException("Tài khoản đã bị khóa");
+        }
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            throw new IllegalArgumentException("Sai mật khẩu hoặc thông tin đăng nhập");
+        }
 
         return jwtUtils.generateTokenFromUsername(user.getEmail());
+    }
+
+    public void requestPasswordReset(ForgotPasswordRequest request) {
+        String normalizedEmail = normalizeEmail(request.email());
+        if (userRepository.findByEmail(normalizedEmail).isEmpty()) {
+            throw new IllegalArgumentException("Tài khoản không tồn tại");
+        }
     }
 
     @Transactional

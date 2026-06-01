@@ -4,6 +4,7 @@ import { adminBrandItem, adminNavItems } from '../../constants/adminNav';
 import type { AdminNavItem } from '../../constants/adminNav';
 import type { AdminOverview } from '../../types/app';
 import { useAuthStore } from '../../store/auth';
+import { queryClient } from '../../lib/queryClient.ts';
 import { cn } from '../../utils/cn';
 
 interface AdminSidebarProps {
@@ -103,6 +104,7 @@ const AdminSidebar = ({ collapsed, mobileOpen, overview, onCloseMobile }: AdminS
 
   const handleLogout = () => {
     logout();
+    queryClient.clear();
     navigate('/login');
   };
 

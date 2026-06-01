@@ -1,6 +1,7 @@
 package com.wealthwallet.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record ReturnRequestResponse(
         Long id,
@@ -12,6 +13,10 @@ public record ReturnRequestResponse(
         String evidenceUrl,
         String paymentStatus,
         String shippingStatus,
+        Long sellerId,
+        String sellerName,
+        String sellerStoreName,
+        List<Long> sellerIds,
         String status,
         String verdict,
         String note,

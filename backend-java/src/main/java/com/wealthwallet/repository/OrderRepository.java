@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
@@ -26,4 +27,14 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
         order by o.createdAt desc
         """)
     List<Order> findByProductIds(@Param("productIds") List<Long> productIds);
+
+    List<Order> findByPaymentMethodAndPaymentStatusAndStatusNotInAndCreatedAtBefore(
+            Order.PaymentMethod paymentMethod,
+            Order.PaymentStatus paymentStatus,
+            List<Order.Status> excludedStatuses,
+            LocalDateTime cutoff
+    );
+
+    List<Order> findByStatusAndUpdatedAtBefore(Order.Status status, LocalDateTime updatedAtBefore);
+
 }

@@ -11,13 +11,16 @@ import {
   MessageSquare,
   Package2,
   Plus,
+  RotateCcw,
   Shield,
   Star,
   Store,
+  Ticket,
   Truck,
   UserRound
 } from 'lucide-react';
 import { financeApi, storeApi } from '../../services/api.ts';
+import { queryClient } from '../../lib/queryClient.ts';
 import { useAuthStore } from '../../store/auth.ts';
 import type { OrderSummary } from '../../types/store.ts';
 
@@ -62,6 +65,8 @@ const SellerLayout = () => {
     }
 
     items.push({ label: 'Đánh giá & phản hồi', path: '/seller/danh-gia', icon: Star });
+    items.push({ label: 'Mã giảm giá', path: '/seller/vouchers', icon: Ticket });
+    items.push({ label: 'Hoàn hàng & Hoàn tiền', path: '/seller/hoan-hang', icon: RotateCcw });
     items.push({ label: 'Vận hành / hỗ trợ', path: '/seller/van-hanh', icon: LifeBuoy });
     items.push({ label: 'Inbox ticket', path: '/seller/tickets', icon: MessageSquare });
 
@@ -152,6 +157,7 @@ const SellerLayout = () => {
 
   const handleLogout = () => {
     logout();
+    queryClient.clear();
     navigate('/login');
   };
 
@@ -207,6 +213,16 @@ const SellerLayout = () => {
                   >
                     <Shield className="h-4 w-4" />
                     <span>Trang chủ admin</span>
+                  </Link>
+                )}
+
+                {isStaff && (
+                  <Link
+                    to="/staff"
+                    className="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50/70 px-3 py-2.5 text-sm font-medium text-cocoa transition hover:border-rose-300 hover:bg-rose-100/60"
+                  >
+                    <Truck className="h-4 w-4" />
+                    <span>Trang vận hành nội bộ</span>
                   </Link>
                 )}
           </nav>
@@ -284,6 +300,13 @@ const SellerLayout = () => {
                   </Link>
                 ) : null}
 
+                {isStaff ? (
+                  <Link to="/staff" className="btn-secondary btn-secondary--sm whitespace-nowrap">
+                    <Truck className="h-4 w-4" />
+                    Trang staff
+                  </Link>
+                ) : null}
+
                 <Link to="/tai-khoan" className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white/85 px-2.5 py-2 text-xs font-semibold text-cocoa">
                   <span className="grid h-6 w-6 place-items-center rounded-full bg-mocha text-[11px] text-cream">{avatarLabel}</span>
                   <span className="hidden sm:inline">{profile?.fullName ?? 'Tài khoản'}</span>
@@ -310,6 +333,11 @@ const SellerLayout = () => {
               {isAdmin ? (
                 <Link to="/admin" className="rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-semibold text-cocoa">
                   Trang chủ admin
+                </Link>
+              ) : null}
+              {isStaff ? (
+                <Link to="/staff" className="rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-semibold text-cocoa">
+                  Trang staff
                 </Link>
               ) : null}
             </div>

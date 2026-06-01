@@ -1,14 +1,16 @@
-import { LogOut, X } from 'lucide-react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { LogOut, Shield, X } from 'lucide-react';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { staffNavItems } from '../../constants/staffNav';
 import type { StaffOverviewSignal } from '../../constants/staffNav';
 import { useAuthStore } from '../../store/auth';
+import { queryClient } from '../../lib/queryClient.ts';
 import { cn } from '../../utils/cn';
 
 interface StaffSidebarProps {
   collapsed: boolean;
   mobileOpen: boolean;
   overview: StaffOverviewSignal;
+  isAdmin: boolean;
   onCloseMobile: () => void;
 }
 
@@ -26,11 +28,13 @@ const getBadgeValue = (overview: StaffOverviewSignal, key?: string) => {
 const StaffSidebarContent = ({
   collapsed,
   overview,
+  isAdmin,
   onNavigate,
   onLogout
 }: {
   collapsed: boolean;
   overview: StaffOverviewSignal;
+  isAdmin: boolean;
   onNavigate: () => void;
   onLogout: () => void;
 }) => (
@@ -64,6 +68,13 @@ const StaffSidebarContent = ({
           </NavLink>
         );
       })}
+
+      {isAdmin ? (
+        <Link to="/admin" onClick={onNavigate} className="admin-sidebar-item admin-focus-ring">
+          <Shield className="h-5 w-5 shrink-0" />
+          {!collapsed ? <span className="truncate">Trang chủ admin</span> : null}
+        </Link>
+      ) : null}
     </nav>
 
     <button type="button" className="admin-sidebar-logout admin-focus-ring mt-4" onClick={onLogout}>
@@ -81,12 +92,13 @@ const ClipboardMarker = () => (
   </svg>
 );
 
-const StaffSidebar = ({ collapsed, mobileOpen, overview, onCloseMobile }: StaffSidebarProps) => {
+const StaffSidebar = ({ collapsed, mobileOpen, overview, isAdmin, onCloseMobile }: StaffSidebarProps) => {
   const navigate = useNavigate();
   const logout = useAuthStore((state) => state.logout);
 
   const handleLogout = () => {
     logout();
+    queryClient.clear();
     navigate('/login');
   };
 
@@ -98,6 +110,7 @@ const StaffSidebar = ({ collapsed, mobileOpen, overview, onCloseMobile }: StaffS
         <StaffSidebarContent
           collapsed={collapsed}
           overview={overview}
+          isAdmin={isAdmin}
           onNavigate={() => undefined}
           onLogout={handleLogout}
         />
@@ -121,6 +134,7 @@ const StaffSidebar = ({ collapsed, mobileOpen, overview, onCloseMobile }: StaffS
             <StaffSidebarContent
               collapsed={false}
               overview={overview}
+              isAdmin={isAdmin}
               onNavigate={onCloseMobile}
               onLogout={handleLogout}
             />

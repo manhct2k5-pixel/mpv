@@ -10,6 +10,7 @@ import com.wealthwallet.dto.ReturnRequestUpdateRequest;
 import com.wealthwallet.repository.OrderRepository;
 import com.wealthwallet.repository.ProductRepository;
 import com.wealthwallet.repository.ReturnRequestRepository;
+import com.wealthwallet.repository.UserAccountRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -21,9 +22,11 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -39,7 +42,16 @@ public class ReturnRequestService {
     private final ReturnRequestRepository returnRequestRepository;
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
+    private final UserAccountRepository userAccountRepository;
     private final AdminSystemConfigService adminSystemConfigService;
+
+    private record OrderSellerSnapshot(
+            Long sellerId,
+            String sellerName,
+            String sellerStoreName,
+            List<Long> sellerIds
+    ) {
+    }
 
     @Transactional(readOnly = true)
     public List<ReturnRequestResponse> list(UserAccount actor, String status) {
@@ -128,8 +140,16 @@ public class ReturnRequestService {
                 throw new ResponseStatusException(BAD_REQUEST, "Trạng thái đổi trả không được để trống");
             }
             ReturnRequest.Status nextStatus = parseStatus(statusInput, null);
+            boolean isSeller = actor.getRole() == UserAccount.Role.SELLER;
             if (supportRole) {
-                ensureStatusTransition(returnRequest.getStatus(), nextStatus);
+                ensureStatusTransitionForStaff(returnRequest.getStatus(), nextStatus);
+                returnRequest.setStatus(nextStatus);
+                returnRequest.setHandledBy(actor);
+            } else if (isSeller) {
+                if (!isOrderManagedBySeller(actor, returnRequest.getOrder())) {
+                    throw new ResponseStatusException(FORBIDDEN, "Bạn không có quyền xử lý yêu cầu này");
+                }
+                ensureStatusTransitionForSeller(returnRequest.getStatus(), nextStatus);
                 returnRequest.setStatus(nextStatus);
                 returnRequest.setHandledBy(actor);
             } else {
@@ -168,11 +188,19 @@ public class ReturnRequestService {
             returnRequest.setEvidenceUrl(trimToNull(request.evidenceUrl()));
         }
 
-        if (supportRole && returnRequest.getStatus() == ReturnRequest.Status.REFUNDED) {
+        boolean actorCanRefund = supportRole || actor.getRole() == UserAccount.Role.SELLER;
+        if (actorCanRefund && returnRequest.getStatus() == ReturnRequest.Status.REFUNDED) {
             Order order = returnRequest.getOrder();
             if (order.getPaymentStatus() == Order.PaymentStatus.PAID) {
                 order.setPaymentStatus(Order.PaymentStatus.REFUNDED);
                 order.setUpdatedAt(LocalDateTime.now());
+                UserAccount buyer = order.getUser();
+                if (buyer != null) {
+                    double current = buyer.getWalletBalance() != null ? buyer.getWalletBalance() : 0.0;
+                    double refundAmount = order.getTotal() != null ? order.getTotal() : 0.0;
+                    buyer.setWalletBalance(current + refundAmount);
+                    userAccountRepository.save(buyer);
+                }
                 orderRepository.save(order);
             }
         }
@@ -232,7 +260,7 @@ public class ReturnRequestService {
         throw new ResponseStatusException(FORBIDDEN, "Bạn không có quyền tạo yêu cầu cho đơn này");
     }
 
-    private void ensureStatusTransition(ReturnRequest.Status current, ReturnRequest.Status next) {
+    private void ensureStatusTransitionForStaff(ReturnRequest.Status current, ReturnRequest.Status next) {
         if (current == next) {
             return;
         }
@@ -242,18 +270,30 @@ public class ReturnRequestService {
                     || next == ReturnRequest.Status.PENDING_ADMIN
                     || next == ReturnRequest.Status.REFUNDED;
             case PENDING_ADMIN -> next == ReturnRequest.Status.APPROVED
-                    || next == ReturnRequest.Status.REJECTED
-                    || next == ReturnRequest.Status.REFUNDED;
+                    || next == ReturnRequest.Status.REJECTED;
             case APPROVED -> next == ReturnRequest.Status.COLLECTING
                     || next == ReturnRequest.Status.REJECTED
                     || next == ReturnRequest.Status.PENDING_ADMIN
                     || next == ReturnRequest.Status.REFUNDED;
-            case COLLECTING -> next == ReturnRequest.Status.RECEIVED;
+            // COLLECTING → RECEIVED → REFUNDED là bước của seller; staff có thể fast-track
+            case COLLECTING -> next == ReturnRequest.Status.RECEIVED
+                    || next == ReturnRequest.Status.REFUNDED;
             case RECEIVED -> next == ReturnRequest.Status.REFUNDED;
             case REFUNDED, REJECTED -> false;
         };
         if (!valid) {
             throw new ResponseStatusException(BAD_REQUEST, "Cập nhật trạng thái đổi trả chưa đúng luồng");
+        }
+    }
+
+    private void ensureStatusTransitionForSeller(ReturnRequest.Status current, ReturnRequest.Status next) {
+        boolean valid = switch (current) {
+            case COLLECTING -> next == ReturnRequest.Status.RECEIVED;
+            case RECEIVED -> next == ReturnRequest.Status.REFUNDED;
+            default -> false;
+        };
+        if (!valid) {
+            throw new ResponseStatusException(BAD_REQUEST, "Seller chỉ xác nhận nhận hàng hoặc hoàn tiền sau khi đã nhận hàng về");
         }
     }
 
@@ -322,6 +362,7 @@ public class ReturnRequestService {
         if (customerName == null) {
             customerName = "Khách #" + order.getId();
         }
+        OrderSellerSnapshot seller = resolveOrderSellerSnapshot(order);
         return new ReturnRequestResponse(
                 request.getId(),
                 request.getRequestCode(),
@@ -332,6 +373,10 @@ public class ReturnRequestService {
                 request.getEvidenceUrl(),
                 order.getPaymentStatus().name().toLowerCase(Locale.ROOT),
                 order.getStatus().name().toLowerCase(Locale.ROOT),
+                seller.sellerId(),
+                seller.sellerName(),
+                seller.sellerStoreName(),
+                seller.sellerIds(),
                 request.getStatus().name().toLowerCase(Locale.ROOT),
                 request.getVerdict(),
                 request.getNote(),
@@ -341,6 +386,58 @@ public class ReturnRequestService {
                 handledBy != null ? handledBy.getFullName() : null,
                 request.getCreatedAt(),
                 request.getUpdatedAt()
+        );
+    }
+
+    private OrderSellerSnapshot resolveOrderSellerSnapshot(Order order) {
+        Set<Long> productIds = order.getItems().stream()
+                .map(item -> item.getProductId())
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        if (productIds.isEmpty()) {
+            return new OrderSellerSnapshot(null, null, null, List.of());
+        }
+
+        Map<Long, Product> productById = productRepository.findAllById(productIds).stream()
+                .collect(Collectors.toMap(Product::getId, product -> product));
+        Map<Long, UserAccount> sellers = new LinkedHashMap<>();
+        order.getItems().forEach(item -> {
+            Long productId = item.getProductId();
+            if (productId == null) {
+                return;
+            }
+            Product product = productById.get(productId);
+            if (product == null || product.getSeller() == null || product.getSeller().getId() == null) {
+                return;
+            }
+            UserAccount seller = product.getSeller();
+            sellers.putIfAbsent(seller.getId(), seller);
+        });
+
+        List<Long> sellerIds = List.copyOf(sellers.keySet());
+        if (sellerIds.isEmpty()) {
+            return new OrderSellerSnapshot(null, null, null, List.of());
+        }
+        if (sellerIds.size() == 1) {
+            UserAccount seller = sellers.get(sellerIds.get(0));
+            return new OrderSellerSnapshot(
+                    seller.getId(),
+                    trimToNull(seller.getFullName()),
+                    trimToNull(seller.getStoreName()),
+                    sellerIds
+            );
+        }
+
+        String sellerNames = sellers.values().stream()
+                .map(UserAccount::getFullName)
+                .map(this::trimToNull)
+                .filter(name -> name != null)
+                .collect(Collectors.joining(", "));
+        return new OrderSellerSnapshot(
+                sellerIds.get(0),
+                sellerNames.isBlank() ? "Nhiều seller" : sellerNames,
+                "Nhiều seller",
+                sellerIds
         );
     }
 

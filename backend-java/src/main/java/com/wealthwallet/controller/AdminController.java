@@ -4,6 +4,7 @@ import com.wealthwallet.domain.entity.Category;
 import com.wealthwallet.domain.entity.Gender;
 import com.wealthwallet.domain.entity.Order;
 import com.wealthwallet.domain.entity.Product;
+import com.wealthwallet.domain.entity.ShippingAddress;
 import com.wealthwallet.domain.entity.UserAccount;
 import com.wealthwallet.dto.AdminCategoryResponse;
 import com.wealthwallet.dto.AdminCategoryUpsertRequest;
@@ -46,6 +47,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -67,6 +69,14 @@ public class AdminController {
     private final UserService userService;
     private final OrderService orderService;
     private final AdminSystemConfigService adminSystemConfigService;
+
+    private record OrderSellerSnapshot(
+            Long sellerId,
+            String sellerName,
+            String sellerStoreName,
+            List<Long> sellerIds
+    ) {
+    }
 
     @GetMapping("/overview")
     public AdminOverviewResponse overview() {
@@ -117,15 +127,7 @@ public class AdminController {
         List<Order> orders = orderRepository.findAllWithUserAndItemsOrderByCreatedAtDesc();
         orderService.synchronizeAutoStatuses(orders);
 
-        Map<Long, Product> productById = new HashMap<>();
-        Set<Long> productIds = orders.stream()
-                .flatMap(order -> order.getItems().stream())
-                .map(item -> item.getProductId())
-                .filter(id -> id != null)
-                .collect(Collectors.toSet());
-        if (!productIds.isEmpty()) {
-            productRepository.findAllById(productIds).forEach(product -> productById.put(product.getId(), product));
-        }
+        Map<Long, Product> productById = loadProductsByOrderItems(orders);
 
         Map<Long, Long> customerTransactions = new HashMap<>();
         Map<Long, Long> sellerTransactions = new HashMap<>();
@@ -265,10 +267,11 @@ public class AdminController {
 
         List<Order> orders = orderRepository.findAllWithUserAndItemsOrderByCreatedAtDesc();
         orderService.synchronizeAutoStatuses(orders);
+        Map<Long, Product> productById = loadProductsByOrderItems(orders);
         return orders.stream()
                 .filter(order -> statusFilter == null || order.getStatus() == statusFilter)
                 .filter(order -> paymentStatusFilter == null || order.getPaymentStatus() == paymentStatusFilter)
-                .map(this::mapOrderSummary)
+                .map(order -> mapOrderSummary(order, productById))
                 .toList();
     }
 
@@ -283,6 +286,29 @@ public class AdminController {
     @PostMapping("/orders/{id}/payment/confirm")
     public OrderResponse confirmOrderPayment(@PathVariable(name = "id") Long id) {
         return orderService.confirmBankTransferPayment(userService.getCurrentUser(), id);
+    }
+
+    @PostMapping("/orders/{id}/release-payment")
+    public OrderResponse releasePaymentToSeller(@PathVariable(name = "id") Long id) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Order not found"));
+        if (order.getStatus() != Order.Status.DELIVERED) {
+            throw new ResponseStatusException(BAD_REQUEST, "Chỉ có thể chuyển tiền cho đơn đã giao thành công");
+        }
+        if (Boolean.TRUE.equals(order.getSellerPaid())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Đơn này đã được chuyển tiền cho người bán");
+        }
+        if (order.getPaymentStatus() == Order.PaymentStatus.REFUNDED) {
+            throw new ResponseStatusException(BAD_REQUEST, "Đơn đã hoàn tiền, không thể chuyển tiền người bán");
+        }
+        if (order.getPaymentStatus() == Order.PaymentStatus.UNPAID) {
+            order.setPaymentStatus(Order.PaymentStatus.PAID);
+        }
+        order.setSellerPaid(true);
+        order.setSellerPaidAt(LocalDateTime.now());
+        order.setUpdatedAt(LocalDateTime.now());
+        orderRepository.save(order);
+        return orderService.getOrder(userService.getCurrentUser(), id);
     }
 
     @PostMapping("/orders/{id}/refund")
@@ -423,7 +449,14 @@ public class AdminController {
             return ResponseEntity.notFound().build();
         }
 
-        return ResponseEntity.ok(Map.of("email", email, "highlighted", highlight));
+        UserAccount currentAdmin = userService.getCurrentUser();
+        if (highlight && currentAdmin.getId().equals(user.getId())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Không thể tự khóa tài khoản của chính mình");
+        }
+
+        user.setAccountLocked(highlight);
+        userAccountRepository.save(user);
+        return ResponseEntity.ok(Map.of("email", email, "highlighted", highlight, "accountLocked", highlight));
     }
 
     private void applyCategoryPayload(Category category, AdminCategoryUpsertRequest request, boolean creating) {
@@ -497,7 +530,9 @@ public class AdminController {
                 user.getCreatedAt(),
                 totalTransactions,
                 flagged,
-                user.getMonthlyIncome() != null && user.getMonthlyIncome() > 0 ? 1 : 0
+                user.getMonthlyIncome() != null && user.getMonthlyIncome() > 0 ? 1 : 0,
+                Boolean.TRUE.equals(user.getAccountLocked()),
+                user.getWalletBalance() != null ? user.getWalletBalance() : 0.0
         );
     }
 
@@ -517,6 +552,12 @@ public class AdminController {
     }
 
     private OrderSummaryResponse mapOrderSummary(Order order) {
+        return mapOrderSummary(order, Map.of());
+    }
+
+    private OrderSummaryResponse mapOrderSummary(Order order, Map<Long, Product> productById) {
+        OrderSellerSnapshot seller = resolveOrderSellerSnapshot(order, productById);
+        ShippingAddress address = order.getShippingAddress();
         return new OrderSummaryResponse(
                 order.getId(),
                 order.getOrderNumber(),
@@ -527,7 +568,70 @@ public class AdminController {
                 order.getItems() != null ? order.getItems().size() : 0,
                 order.getCreatedAt(),
                 order.getUpdatedAt(),
-                order.getDeliveredAt()
+                order.getDeliveredAt(),
+                Boolean.TRUE.equals(order.getSellerPaid()),
+                order.getSellerPaidAt(),
+                address != null ? trimToNull(address.getFullName()) : null,
+                address != null ? trimToNull(address.getPhone()) : null,
+                seller.sellerId(),
+                seller.sellerName(),
+                seller.sellerStoreName(),
+                seller.sellerIds()
+        );
+    }
+
+    private Map<Long, Product> loadProductsByOrderItems(List<Order> orders) {
+        Map<Long, Product> productById = new HashMap<>();
+        Set<Long> productIds = orders.stream()
+                .flatMap(order -> order.getItems().stream())
+                .map(item -> item.getProductId())
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        if (!productIds.isEmpty()) {
+            productRepository.findAllByIdWithSeller(productIds).forEach(product -> productById.put(product.getId(), product));
+        }
+        return productById;
+    }
+
+    private OrderSellerSnapshot resolveOrderSellerSnapshot(Order order, Map<Long, Product> productById) {
+        Map<Long, UserAccount> sellers = new LinkedHashMap<>();
+        order.getItems().forEach(item -> {
+            Long productId = item.getProductId();
+            if (productId == null) {
+                return;
+            }
+            Product product = productById.get(productId);
+            if (product == null || product.getSeller() == null || product.getSeller().getId() == null) {
+                return;
+            }
+            UserAccount seller = product.getSeller();
+            sellers.putIfAbsent(seller.getId(), seller);
+        });
+
+        List<Long> sellerIds = List.copyOf(sellers.keySet());
+        if (sellerIds.isEmpty()) {
+            return new OrderSellerSnapshot(null, null, null, List.of());
+        }
+
+        if (sellerIds.size() == 1) {
+            UserAccount seller = sellers.get(sellerIds.get(0));
+            return new OrderSellerSnapshot(
+                    seller.getId(),
+                    seller.getFullName(),
+                    trimToNull(seller.getStoreName()),
+                    sellerIds
+            );
+        }
+
+        String sellerNames = sellers.values().stream()
+                .map(UserAccount::getFullName)
+                .filter(name -> name != null && !name.isBlank())
+                .collect(Collectors.joining(", "));
+        return new OrderSellerSnapshot(
+                sellerIds.get(0),
+                sellerNames.isBlank() ? "Nhiều seller" : sellerNames,
+                "Nhiều seller",
+                sellerIds
         );
     }
 

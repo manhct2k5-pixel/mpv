@@ -54,7 +54,7 @@ public class StoreProductManagementService {
                 .basePrice(request.basePrice())
                 .salePrice(request.salePrice())
                 .featured(Boolean.TRUE.equals(request.featured()))
-                .active(true)
+                .active(user.getRole() != UserAccount.Role.SELLER)
                 .category(category)
                 .seller(user)
                 .imageUrls(sanitizeImageUrls(request.imageUrls()))
@@ -78,12 +78,21 @@ public class StoreProductManagementService {
         return mapDetail(saved);
     }
 
+    @Transactional(readOnly = true)
+    public StoreProductDetailResponse detail(UserAccount user, Long productId) {
+        ensureCanManageProducts(user);
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Product not found"));
+        ensureOwnerOrAdminOrStaff(user, product);
+        return mapDetail(product);
+    }
+
     @Transactional
     public StoreProductDetailResponse update(UserAccount user, Long productId, StoreProductUpdateRequest request) {
         ensureCanManageProducts(user);
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Product not found"));
-        ensureOwnerOrAdmin(user, product);
+        ensureOwnerOrAdminOrStaff(user, product);
 
         if (request.name() != null && !request.name().isBlank()) {
             String trimmedName = request.name().trim();
@@ -136,7 +145,7 @@ public class StoreProductManagementService {
         ensureCanManageProducts(user);
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Product not found"));
-        ensureOwnerOrAdmin(user, product);
+        ensureOwnerOrAdminOrStaff(user, product);
         product.setActive(false);
         productRepository.save(product);
     }
@@ -151,7 +160,7 @@ public class StoreProductManagementService {
         ensureCanManageProducts(user);
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Product not found"));
-        ensureOwnerOrAdmin(user, product);
+        ensureOwnerOrAdminOrStaff(user, product);
         ProductVariant variant = product.getVariants().stream()
                 .filter(item -> item.getId().equals(variantId))
                 .findFirst()
@@ -192,7 +201,7 @@ public class StoreProductManagementService {
         ensureCanManageProducts(user);
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Product not found"));
-        ensureOwnerOrAdmin(user, product);
+        ensureOwnerOrAdminOrStaff(user, product);
         ProductVariant variant = ProductVariant.builder()
                 .product(product)
                 .size(request.size().trim())
@@ -217,7 +226,7 @@ public class StoreProductManagementService {
         ensureCanManageProducts(user);
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Product not found"));
-        ensureOwnerOrAdmin(user, product);
+        ensureOwnerOrAdminOrStaff(user, product);
         Optional<ProductVariant> variant = product.getVariants().stream()
                 .filter(item -> item.getId().equals(variantId))
                 .findFirst();
@@ -240,9 +249,17 @@ public class StoreProductManagementService {
             return;
         }
         UserAccount seller = product.getSeller();
-        if (seller == null || !seller.getId().equals(user.getId())) {
-            throw new ResponseStatusException(FORBIDDEN, "Bạn không có quyền cập nhật sản phẩm này");
+        if (seller != null && seller.getId().equals(user.getId())) {
+            return;
         }
+        throw new ResponseStatusException(FORBIDDEN, "Bạn không có quyền cập nhật sản phẩm này");
+    }
+
+    private void ensureOwnerOrAdminOrStaff(UserAccount user, Product product) {
+        if (user.getRole() == UserAccount.Role.WAREHOUSE || user.getRole() == UserAccount.Role.STYLES) {
+            return;
+        }
+        ensureOwnerOrAdmin(user, product);
     }
 
     private String buildUniqueSlug(String name) {
@@ -278,6 +295,7 @@ public class StoreProductManagementService {
                 product.getGender().name().toLowerCase(),
                 product.getBasePrice(),
                 product.getSalePrice(),
+                product.getActive(),
                 product.getAverageRating(),
                 product.getReviewCount(),
                 product.getDescription(),
@@ -285,7 +303,10 @@ public class StoreProductManagementService {
                 product.getMaterial(),
                 product.getFit(),
                 List.copyOf(sanitizeImageUrls(product.getImageUrls())),
-                variants
+                variants,
+                product.getSeller() != null ? product.getSeller().getId() : null,
+                product.getSeller() != null ? trimToNull(product.getSeller().getFullName()) : null,
+                product.getSeller() != null ? trimToNull(product.getSeller().getStoreName()) : null
         );
     }
 

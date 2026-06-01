@@ -4,6 +4,7 @@ import com.wealthwallet.domain.entity.UserAccount;
 import com.wealthwallet.dto.CartItemRequest;
 import com.wealthwallet.dto.CartItemUpdateRequest;
 import com.wealthwallet.dto.CartResponse;
+import com.wealthwallet.dto.GuestCartMergeRequest;
 import com.wealthwallet.dto.ManualOrderCreateRequest;
 import com.wealthwallet.dto.OrderCreateRequest;
 import com.wealthwallet.dto.OrderResponse;
@@ -79,6 +80,13 @@ public class StoreOrderController {
         return cartService.clear(user);
     }
 
+    @PostMapping("/cart/merge")
+    public CartResponse mergeGuestCart(@Valid @RequestBody GuestCartMergeRequest request) {
+        UserAccount user = userService.getCurrentUser();
+        userService.ensureStoreBuyer(user);
+        return cartService.mergeGuestCart(user, request.items());
+    }
+
     @PostMapping("/cart/voucher/apply")
     public CartResponse applyVoucher(@Valid @RequestBody VoucherApplyRequest request) {
         UserAccount user = userService.getCurrentUser();
@@ -95,8 +103,6 @@ public class StoreOrderController {
 
     @GetMapping("/vouchers/validate")
     public VoucherValidationResponse validateVoucher(@RequestParam(name = "code") String code) {
-        UserAccount user = userService.getCurrentUser();
-        userService.ensureStoreBuyer(user);
         return voucherService.validateForPreview(code);
     }
 

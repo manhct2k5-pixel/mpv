@@ -26,6 +26,7 @@ const CheckoutPage = lazy(() => import('./pages/CheckoutPage.tsx'));
 const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage.tsx'));
 const OrdersPage = lazy(() => import('./pages/OrdersPage.tsx'));
 const OrderDetailPage = lazy(() => import('./pages/OrderDetailPage.tsx'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage.tsx'));
 const WishlistPage = lazy(() => import('./pages/WishlistPage.tsx'));
 const CustomerSupportRequestsPage = lazy(() => import('./pages/CustomerSupportRequestsPage.tsx'));
 const AddressBookPage = lazy(() => import('./pages/AddressBookPage.tsx'));
@@ -48,6 +49,9 @@ const AdminReportsPage = lazy(() => import('./pages/AdminReportsPage.tsx'));
 const AdminRefundsPage = lazy(() => import('./pages/AdminRefundsPage.tsx'));
 const AdminLogsPage = lazy(() => import('./pages/AdminLogsPage.tsx'));
 const AdminSettingsPage = lazy(() => import('./pages/AdminSettingsPage.tsx'));
+const AdminVouchersPage = lazy(() => import('./pages/AdminVouchersPage.tsx'));
+const SellerVouchersPage = lazy(() => import('./pages/SellerVouchersPage.tsx'));
+const SellerReturnsPage = lazy(() => import('./pages/SellerReturnsPage.tsx'));
 const StaffDashboardPage = lazy(() => import('./pages/StaffDashboardPage.tsx'));
 const StaffOrderProcessingPage = lazy(() => import('./pages/StaffOrderProcessingPage.tsx'));
 const StaffQCPackingPage = lazy(() => import('./pages/StaffQCPackingPage.tsx'));
@@ -146,6 +150,8 @@ const App = () => {
           <Route path="/seller/ho-so" element={<SellerProfilePage />} />
           <Route path="/seller/danh-gia" element={<SellerRatingsPage />} />
           <Route path="/seller/van-hanh" element={<SellerOperationsPage />} />
+          <Route path="/seller/vouchers" element={<SellerVouchersPage />} />
+          <Route path="/seller/hoan-hang" element={<SellerReturnsPage />} />
           <Route
             path="/seller/control-center"
             element={
@@ -180,6 +186,7 @@ const App = () => {
           <Route path="/admin/reports" element={<AdminReportsPage />} />
           <Route path="/admin/refunds" element={<AdminRefundsPage />} />
           <Route path="/admin/logs" element={<AdminLogsPage />} />
+          <Route path="/admin/vouchers" element={<AdminVouchersPage />} />
           <Route path="/admin/account" element={<AdminSettingsPage />} />
         </Route>
 
@@ -194,6 +201,7 @@ const App = () => {
         >
           <Route path="/staff" element={<StaffDashboardPage />} />
           <Route path="/staff/orders" element={<StaffOrderProcessingPage />} />
+          <Route path="/staff/san-pham" element={<ProductManagementPage />} />
           <Route path="/staff/qc-packing" element={<StaffQCPackingPage />} />
           <Route path="/staff/shipments" element={<StaffShipmentPage />} />
           <Route path="/staff/tickets" element={<StaffTicketsPage />} />
@@ -210,14 +218,7 @@ const App = () => {
           <Route path="/phu-kien" element={<StoreCategoryPage slug="phu-kien" />} />
           <Route path="/sale" element={<StoreCategoryPage slug="sale" />} />
           <Route path="/san-pham/:slug" element={<ProductDetailPage />} />
-          <Route
-            path="/gio-hang"
-            element={
-              <ProtectedRoute>
-                <CartPage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/gio-hang" element={<CartPage />} />
           <Route
             path="/thanh-toan"
             element={
@@ -297,7 +298,7 @@ const App = () => {
               </ProtectedRoute>
             }
           />
-          <Route path="*" element={<StorefrontPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     </Suspense>

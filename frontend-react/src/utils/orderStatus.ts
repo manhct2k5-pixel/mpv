@@ -9,7 +9,6 @@ export type OrderWorkflowStatus =
 
 const workflowOrder: OrderWorkflowStatus[] = [
   'pending',
-  'processing',
   'confirmed',
   'packing',
   'shipped',
@@ -17,11 +16,11 @@ const workflowOrder: OrderWorkflowStatus[] = [
 ];
 
 export const orderStatusLabels: Record<OrderWorkflowStatus, string> = {
-  pending: 'Chờ xác nhận',
-  processing: 'Đang xử lý nội bộ',
-  confirmed: 'Đã xác nhận / chờ QC',
-  packing: 'Đang đóng gói',
-  shipped: 'Đang giao',
+  pending: 'Chờ người bán xác nhận',
+  processing: 'Đang xử lý',
+  confirmed: 'Đã xác nhận (chờ tạo vận đơn)',
+  packing: 'Đang tạo vận đơn',
+  shipped: 'Đang vận chuyển',
   delivered: 'Giao thành công',
   cancelled: 'Đã hủy'
 };
@@ -42,6 +41,8 @@ export const normalizeOrderStatus = (value: string | null | undefined): OrderWor
 export const getNextSequentialStatus = (currentStatus: string | null | undefined): OrderWorkflowStatus | null => {
   const current = normalizeOrderStatus(currentStatus);
   if (!current) return null;
+  // COD orders start at 'processing' (parallel to 'pending'); both advance to 'confirmed'.
+  if (current === 'processing') return 'confirmed';
   const index = workflowOrder.indexOf(current);
   if (index < 0 || index >= workflowOrder.length - 1) return null;
   return workflowOrder[index + 1];
@@ -59,7 +60,11 @@ export const getTargetStatusForPackingFlow = (
     }
     return null;
   }
-  return current === 'confirmed' ? 'packing' : null;
+  // Nhân viên chỉ tạo vận đơn: confirmed → packing (packing → shipped là tự động)
+  if (current === 'confirmed') {
+    return 'packing';
+  }
+  return null;
 };
 
 export const getAllowedStatusUpdates = (
@@ -76,6 +81,6 @@ export const getAllowedStatusUpdates = (
   }
 
   if (current === 'confirmed') return ['packing'];
-  if (current === 'packing') return ['shipped'];
+  // packing → shipped là tự động; nhân viên kho không được tự chuyển sang "đang giao"
   return [];
 };

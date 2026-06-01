@@ -1,10 +1,15 @@
 package com.wealthwallet.service;
 
+import com.wealthwallet.domain.entity.Cart;
+import com.wealthwallet.domain.entity.CartItem;
 import com.wealthwallet.domain.entity.Order;
 import com.wealthwallet.domain.entity.OrderItem;
 import com.wealthwallet.domain.entity.Product;
+import com.wealthwallet.domain.entity.ProductVariant;
 import com.wealthwallet.domain.entity.ShippingAddress;
 import com.wealthwallet.domain.entity.UserAccount;
+import com.wealthwallet.dto.AdminSystemConfigResponse;
+import com.wealthwallet.dto.OrderCreateRequest;
 import com.wealthwallet.dto.OrderResponse;
 import com.wealthwallet.dto.OrderStatusUpdateRequest;
 import com.wealthwallet.dto.OrderSummaryResponse;
@@ -55,6 +60,9 @@ class OrderServiceTest {
 
     @Mock
     private VoucherService voucherService;
+
+    @Mock
+    private AdminSystemConfigService adminSystemConfigService;
 
     @InjectMocks
     private OrderService orderService;
@@ -183,6 +191,77 @@ class OrderServiceTest {
     }
 
     @Test
+    void createOrder_shouldMoveCodOrderDirectlyToProcessing() {
+        UserAccount customer = user(7L, UserAccount.Role.USER);
+        UserAccount seller = user(10L, UserAccount.Role.SELLER);
+        ProductVariant cartVariant = variant(100L, product(200L, seller), 5);
+        ProductVariant lockedVariant = variant(100L, product(200L, seller), 5);
+        Cart cart = Cart.builder().id(20L).user(customer).items(new java.util.ArrayList<>()).build();
+        cart.getItems().add(CartItem.builder().id(30L).cart(cart).variant(cartVariant).quantity(2).build());
+
+        when(cartRepository.findByUser(customer)).thenReturn(Optional.of(cart));
+        when(productVariantRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(lockedVariant));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order saved = invocation.getArgument(0);
+            saved.setId(900L);
+            return saved;
+        });
+
+        OrderResponse response = orderService.createOrder(customer, new OrderCreateRequest(
+                "Nguyen Van A",
+                "0909000000",
+                "12 Nguyen Hue",
+                null,
+                "Ben Nghe",
+                "Quan 1",
+                "TP.HCM",
+                "TP.HCM",
+                null,
+                null,
+                Order.PaymentMethod.COD,
+                null
+        ));
+
+        assertThat(response.status()).isEqualTo("processing");
+        assertThat(response.paymentStatus()).isEqualTo("unpaid");
+        assertThat(lockedVariant.getStockQty()).isEqualTo(3);
+        assertThat(cart.getItems()).isEmpty();
+    }
+
+    @Test
+    void cancelExpiredUnpaidBankTransferOrders_shouldCancelAndReleaseStock() {
+        UserAccount customer = user(7L, UserAccount.Role.USER);
+        ProductVariant variant = variant(100L, product(200L, user(10L, UserAccount.Role.SELLER)), 1);
+        Order order = baseOrder(503L, Order.Status.PENDING);
+        order.setUser(customer);
+        order.setPaymentMethod(Order.PaymentMethod.BANK_TRANSFER);
+        order.setPaymentStatus(Order.PaymentStatus.UNPAID);
+        order.setCreatedAt(LocalDateTime.now().minusHours(49));
+        order.setItems(List.of(OrderItem.builder()
+                .id(1L)
+                .variantId(100L)
+                .productId(200L)
+                .quantity(2)
+                .lineTotal(100_000d)
+                .build()));
+
+        when(adminSystemConfigService.get()).thenReturn(adminConfig(48));
+        when(orderRepository.findByPaymentMethodAndPaymentStatusAndStatusNotInAndCreatedAtBefore(
+                any(Order.PaymentMethod.class),
+                any(Order.PaymentStatus.class),
+                any(),
+                any(LocalDateTime.class)
+        )).thenReturn(List.of(order));
+        when(productVariantRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(variant));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        orderService.cancelExpiredUnpaidBankTransferOrders();
+
+        assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+        assertThat(variant.getStockQty()).isEqualTo(3);
+    }
+
+    @Test
     void getOrder_shouldHideMixedSellerOrderFromSeller() {
         UserAccount seller = user(10L, UserAccount.Role.SELLER);
         UserAccount otherSeller = user(11L, UserAccount.Role.SELLER);
@@ -280,14 +359,14 @@ class OrderServiceTest {
                     org.springframework.web.server.ResponseStatusException exception =
                             (org.springframework.web.server.ResponseStatusException) error;
                     assertThat(exception.getStatusCode()).isEqualTo(BAD_REQUEST);
-                    assertThat(exception.getReason()).contains("trước khi qua kho");
+                    assertThat(exception.getReason()).contains("trước khi đơn được xác nhận");
                 });
     }
 
     @Test
     void updateOrder_shouldAllowSellerEditingBeforeWarehouseFlow() {
         UserAccount seller = user(10L, UserAccount.Role.SELLER);
-        Order order = baseOrder(711L, Order.Status.CONFIRMED);
+        Order order = baseOrder(711L, Order.Status.PROCESSING);
         order.setShippingAddress(ShippingAddress.builder()
                 .order(order)
                 .fullName("Nguyen Van A")
@@ -359,7 +438,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void confirmBankTransferPayment_shouldTreatLegacyStylesRoleAsWarehouseAndRejectManualConfirmation() {
+    void confirmBankTransferPayment_shouldRejectNonAdminManualConfirmation() {
         UserAccount styles = user(12L, UserAccount.Role.STYLES);
         Order order = baseOrder(714L, Order.Status.CONFIRMED);
         order.setPaymentMethod(Order.PaymentMethod.BANK_TRANSFER);
@@ -374,7 +453,7 @@ class OrderServiceTest {
                     org.springframework.web.server.ResponseStatusException exception =
                             (org.springframework.web.server.ResponseStatusException) error;
                     assertThat(exception.getStatusCode()).isEqualTo(FORBIDDEN);
-                    assertThat(exception.getReason()).contains("Kho không có quyền xác nhận thanh toán");
+                    assertThat(exception.getReason()).contains("Chỉ admin được xác nhận chuyển khoản");
                 });
     }
 
@@ -406,6 +485,16 @@ class OrderServiceTest {
                 .build();
     }
 
+    private ProductVariant variant(Long id, Product product, Integer stockQty) {
+        return ProductVariant.builder()
+                .id(id)
+                .product(product)
+                .size("M")
+                .color("Be")
+                .stockQty(stockQty)
+                .build();
+    }
+
     private Product product(Long id, UserAccount seller) {
         return Product.builder()
                 .id(id)
@@ -414,5 +503,16 @@ class OrderServiceTest {
                 .basePrice(100_000d)
                 .seller(seller)
                 .build();
+    }
+
+    private AdminSystemConfigResponse adminConfig(Integer autoCancelHours) {
+        return new AdminSystemConfigResponse(
+                "support@example.com",
+                "1900",
+                autoCancelHours,
+                7,
+                true,
+                false
+        );
     }
 }

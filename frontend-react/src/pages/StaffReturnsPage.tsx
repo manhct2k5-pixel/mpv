@@ -14,6 +14,26 @@ const statusLabel: Record<ReturnRequestStatus, string> = {
   pending_admin: 'Chuyển admin duyệt'
 };
 
+const RETURN_FILTER_TABS: Array<{ id: 'all' | ReturnRequestStatus; label: string }> = [
+  { id: 'all', label: 'Tất cả' },
+  { id: 'pending_verification', label: 'Chờ xác minh' },
+  { id: 'approved', label: 'Đã duyệt' },
+  { id: 'collecting', label: 'Đang thu hồi' },
+  { id: 'received', label: 'Seller đã nhận' },
+  { id: 'pending_admin', label: 'Chuyển admin' },
+  { id: 'refunded', label: 'Đã hoàn tiền' },
+  { id: 'rejected', label: 'Từ chối' }
+];
+
+const getReturnSellerLabel = (request: ReturnRequest) => {
+  const storeName = request.sellerStoreName?.trim();
+  const sellerName = request.sellerName?.trim();
+  if (storeName) return storeName;
+  if (sellerName) return sellerName;
+  if (request.sellerIds?.length) return request.sellerIds.map((id) => `Seller #${id}`).join(', ');
+  return request.sellerId ? `Seller #${request.sellerId}` : 'Chưa gán seller';
+};
+
 const getErrorMessage = (error: any, fallback: string) =>
   error?.response?.data?.message || error?.response?.data?.error || fallback;
 
@@ -21,12 +41,13 @@ const isImageEvidence = (value?: string | null) =>
   typeof value === 'string' &&
   (value.startsWith('data:image/') || /\.(avif|gif|jpe?g|png|svg|webp)([?#].*)?$/i.test(value));
 
+// Staff chỉ xử lý đến bước COLLECTING. RECEIVED và REFUNDED do seller xác nhận.
 const returnTransitions: Record<ReturnRequestStatus, ReturnRequestStatus[]> = {
-  pending_verification: ['approved', 'rejected', 'pending_admin', 'refunded'],
-  pending_admin: ['approved', 'rejected', 'refunded'],
-  approved: ['collecting', 'rejected', 'pending_admin', 'refunded'],
-  collecting: ['received'],
-  received: ['refunded'],
+  pending_verification: ['approved', 'rejected', 'pending_admin'],
+  pending_admin: ['approved', 'rejected'],
+  approved: ['collecting', 'rejected', 'pending_admin'],
+  collecting: [],
+  received: [],
   refunded: [],
   rejected: []
 };
@@ -40,6 +61,7 @@ const isReturnTransitionAvailable = (current: ReturnRequestStatus, next: ReturnR
 const StaffReturnsPage = () => {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<'all' | ReturnRequestStatus>('all');
+  const [sellerQuery, setSellerQuery] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [verdictDraft, setVerdictDraft] = useState('');
@@ -51,10 +73,14 @@ const StaffReturnsPage = () => {
     refetchInterval: 15_000
   });
 
-  const visibleRequests = useMemo(
-    () => requests.filter((item) => statusFilter === 'all' || item.status === statusFilter),
-    [requests, statusFilter]
-  );
+  const visibleRequests = useMemo(() => {
+    const normalizedSeller = sellerQuery.trim().toLowerCase();
+    return requests.filter((item) => {
+      const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
+      const matchesSeller = !normalizedSeller || getReturnSellerLabel(item).toLowerCase().includes(normalizedSeller);
+      return matchesStatus && matchesSeller;
+    });
+  }, [requests, sellerQuery, statusFilter]);
 
   const selectedRequest = useMemo(
     () => requests.find((item) => item.id === selectedId) ?? null,
@@ -82,9 +108,6 @@ const StaffReturnsPage = () => {
     setNoteDraft(selectedRequest?.note ?? '');
   }, [selectedId, selectedRequest?.verdict, selectedRequest?.note]);
 
-  const canCompleteReturnDirectly =
-    selectedRequest != null &&
-    ['pending_verification', 'pending_admin', 'approved', 'received'].includes(selectedRequest.status);
 
   const updateRequestMutation = useMutation({
     mutationFn: (payload: {
@@ -144,21 +167,29 @@ const StaffReturnsPage = () => {
             <p className="admin-section__description">Lọc theo trạng thái để tập trung xử lý các yêu cầu mở.</p>
           </div>
         </div>
-        <div className="mb-4">
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as 'all' | ReturnRequestStatus)}
-            className="admin-select"
-          >
-            <option value="all">Tất cả yêu cầu</option>
-            <option value="pending_verification">Chờ xác minh</option>
-            <option value="approved">Đã duyệt</option>
-            <option value="collecting">Đang thu hồi hàng</option>
-            <option value="received">Đã nhận hàng hoàn</option>
-            <option value="refunded">Đã hoàn tiền</option>
-            <option value="rejected">Từ chối</option>
-            <option value="pending_admin">Chuyển admin duyệt</option>
-          </select>
+        <div className="mb-4 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {RETURN_FILTER_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                  statusFilter === tab.id
+                    ? 'border-[var(--admin-accent)] bg-[var(--admin-accent)] text-white'
+                    : 'border-[var(--admin-border)] bg-white text-[var(--admin-muted)] hover:text-[var(--admin-text)]'
+                }`}
+                onClick={() => setStatusFilter(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <input
+            value={sellerQuery}
+            onChange={(event) => setSellerQuery(event.target.value)}
+            className="admin-input max-w-md"
+            placeholder="Tìm người bán / gian hàng cần phối hợp hoàn tiền"
+          />
         </div>
 
         {isLoading ? <p className="text-sm text-[var(--admin-muted)]">Đang tải yêu cầu đổi trả...</p> : null}
@@ -172,6 +203,7 @@ const StaffReturnsPage = () => {
                   <th>Mã yêu cầu</th>
                   <th>Mã đơn</th>
                   <th>Khách hàng</th>
+                  <th>Seller</th>
                   <th>Lý do</th>
                   <th>Trạng thái thanh toán</th>
                   <th>Trạng thái giao hàng</th>
@@ -184,6 +216,7 @@ const StaffReturnsPage = () => {
                     <td>{item.requestCode}</td>
                     <td>{item.orderNumber}</td>
                     <td>{item.customerName}</td>
+                    <td>{getReturnSellerLabel(item)}</td>
                     <td>{item.reason}</td>
                     <td>{item.paymentStatus}</td>
                     <td>{item.shippingStatus}</td>
@@ -196,7 +229,7 @@ const StaffReturnsPage = () => {
                 ))}
                 {visibleRequests.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center text-sm text-[var(--admin-muted)]">
+                    <td colSpan={8} className="text-center text-sm text-[var(--admin-muted)]">
                       Không có yêu cầu đổi trả.
                     </td>
                   </tr>
@@ -229,6 +262,8 @@ const StaffReturnsPage = () => {
                 <p>Mã đơn: {selectedRequest.orderNumber}</p>
                 <p>Lý do đổi trả: {selectedRequest.reason}</p>
                 <p>Khách hàng: {selectedRequest.customerName}</p>
+                <p>Seller cần phối hợp: {getReturnSellerLabel(selectedRequest)}</p>
+                <p>Thanh toán: {selectedRequest.paymentStatus} • Giao hàng: {selectedRequest.shippingStatus}</p>
               </div>
               {selectedRequest.evidenceUrl ? (
                 <div className="mt-3 space-y-2">
@@ -325,22 +360,6 @@ const StaffReturnsPage = () => {
                 placeholder="Ghi chú xử lý..."
               />
               <div className="mt-3 flex flex-wrap gap-2">
-                {canCompleteReturnDirectly ? (
-                  <button
-                    type="button"
-                    className="admin-action-button success"
-                    disabled={updateRequestMutation.isPending}
-                    onClick={() =>
-                      perform('Đã duyệt hoàn trả thành công', {
-                        status: 'refunded',
-                        verdict: verdictDraft || 'Đã duyệt hoàn trả thành công',
-                        note: noteDraft
-                      })
-                    }
-                  >
-                    Duyệt hoàn trả thành công
-                  </button>
-                ) : null}
                 {isReturnTransitionAvailable(selectedRequest.status, 'approved') ? (
                   <button
                     type="button"
@@ -389,38 +408,6 @@ const StaffReturnsPage = () => {
                     Tạo lệnh hoàn hàng
                   </button>
                 ) : null}
-                {isReturnTransitionAvailable(selectedRequest.status, 'received') ? (
-                  <button
-                    type="button"
-                    className="admin-inline-button"
-                    disabled={updateRequestMutation.isPending}
-                    onClick={() =>
-                      perform('Đã xác nhận nhận hàng hoàn', {
-                        status: 'received',
-                        verdict: verdictDraft || 'Đã nhận hàng hoàn tại kho',
-                        note: noteDraft
-                      })
-                    }
-                  >
-                    Đã nhận hàng hoàn
-                  </button>
-                ) : null}
-                {isReturnTransitionAvailable(selectedRequest.status, 'refunded') && !canCompleteReturnDirectly ? (
-                  <button
-                    type="button"
-                    className="admin-inline-button"
-                    disabled={updateRequestMutation.isPending}
-                    onClick={() =>
-                      perform('Đã cập nhật hoàn trả thành công', {
-                        status: 'refunded',
-                        verdict: verdictDraft || 'Đã duyệt hoàn trả thành công',
-                        note: noteDraft
-                      })
-                    }
-                  >
-                    Cập nhật hoàn trả thành công
-                  </button>
-                ) : null}
                 {isReturnTransitionAvailable(selectedRequest.status, 'pending_admin') ? (
                   <button
                     type="button"
@@ -438,7 +425,11 @@ const StaffReturnsPage = () => {
                   </button>
                 ) : null}
               </div>
-              {returnTransitions[selectedRequest.status].length === 0 ? (
+              {selectedRequest.status === 'collecting' ? (
+                <p className="mt-2 text-xs text-amber-600">Đang chờ seller xác nhận đã nhận hàng hoàn về. Các bước tiếp theo do seller thực hiện.</p>
+              ) : selectedRequest.status === 'received' ? (
+                <p className="mt-2 text-xs text-amber-600">Hàng đã về tay seller. Chờ seller xác nhận hoàn tiền cho khách.</p>
+              ) : returnTransitions[selectedRequest.status].length === 0 ? (
                 <p className="mt-2 text-xs text-[var(--admin-muted)]">Yêu cầu này đã ở trạng thái cuối, không còn bước xử lý tiếp theo.</p>
               ) : null}
             </article>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { ArrowRight, CheckCircle2, Lock, Mail, User } from 'lucide-react';
 import AuthLayout from '../components/layout/AuthLayout.tsx';
@@ -10,6 +10,11 @@ const benefits = [
   'Lưu wishlist và theo dõi đơn hàng',
   'Thanh toán nhanh và nhận ưu đãi thành viên'
 ];
+
+const getSafeNextPath = (search: string) => {
+  const next = new URLSearchParams(search).get('next')?.trim();
+  return next && next.startsWith('/') && !next.startsWith('//') ? next : null;
+};
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -22,6 +27,9 @@ const RegisterPage = () => {
   const [agreed, setAgreed] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const nextPath = getSafeNextPath(location.search);
+  const loginPath = nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : '/login';
 
   const registerMutation = useMutation({
     mutationFn: async () => {
@@ -38,7 +46,7 @@ const RegisterPage = () => {
     },
     onSuccess: () => {
       setStatusMessage('Đăng ký tài khoản khách thành công! Vui lòng đăng nhập để bắt đầu mua sắm.');
-      setTimeout(() => navigate('/login'), 900);
+      setTimeout(() => navigate(loginPath), 900);
     },
     onError: (error: any) => {
       setStatusMessage(
@@ -82,7 +90,7 @@ const RegisterPage = () => {
         <div className="space-y-2 text-sm">
           <p>
             Đã có tài khoản?{' '}
-            <Link to="/login" className="text-mocha underline-offset-4 hover:underline">
+            <Link to={loginPath} className="text-mocha underline-offset-4 hover:underline">
               Đăng nhập
             </Link>
           </p>

@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { ArrowRight, Lock, Mail, Sparkles } from 'lucide-react';
 import AuthLayout from '../components/layout/AuthLayout.tsx';
 import { useAuthStore } from '../store/auth.ts';
-import { api, getApiErrorMessage } from '../services/api.ts';
+import { api, getApiErrorMessage, storeApi } from '../services/api.ts';
+import { useGuestCartStore } from '../store/guestCart.ts';
 import type { UserProfile } from '../types/app';
 
 const quickAccounts = [
@@ -20,6 +21,11 @@ const DEMO_ACCOUNT_CREDENTIALS = new Map(
   quickAccounts.map((account) => [account.email.toLowerCase(), account.password])
 );
 
+const getSafeNextPath = (search: string) => {
+  const next = new URLSearchParams(search).get('next')?.trim();
+  return next && next.startsWith('/') && !next.startsWith('//') ? next : null;
+};
+
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,8 +34,13 @@ const LoginPage = () => {
     text: string;
   } | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const nextPath = getSafeNextPath(location.search);
+  const registerPath = nextPath ? `/register?next=${encodeURIComponent(nextPath)}` : '/register';
   const queryClient = useQueryClient();
   const login = useAuthStore((state) => state.login);
+  const guestItems = useGuestCartStore((state) => state.items);
+  const clearGuestCart = useGuestCartStore((state) => state.clearCart);
 
   const loginMutation = useMutation({
     mutationFn: async (data: { email: string; password: string }) => {
@@ -44,11 +55,21 @@ const LoginPage = () => {
           const profileResponse = await api.get<UserProfile>('/user');
           const profile = profileResponse.data;
           queryClient.setQueryData(['profile'], profile);
-          setTimeout(() => navigate('/', { replace: true }), 250);
+          if (guestItems.length > 0 && profile.role?.toLowerCase() === 'user') {
+            try {
+              const mergedCart = await storeApi.mergeGuestCart(
+                guestItems.map((i) => ({ variantId: i.variantId, quantity: i.quantity }))
+              );
+              queryClient.setQueryData(['store-cart'], mergedCart);
+              clearGuestCart();
+            } catch {
+              // merge thất bại không ảnh hưởng đăng nhập
+            }
+          }
         } catch {
           queryClient.removeQueries({ queryKey: ['profile'], exact: true });
-          setTimeout(() => navigate('/', { replace: true }), 250);
         }
+        setTimeout(() => navigate(nextPath ?? '/', { replace: true }), 250);
       }
     },
     onError: (error: unknown, variables) => {
@@ -94,10 +115,32 @@ const LoginPage = () => {
 
   const handleForgotPassword = () => {
     loginMutation.reset();
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setStatusMessage({
+        tone: 'error',
+        text: 'Vui lòng nhập email trước khi yêu cầu cấp lại mật khẩu.'
+      });
+      return;
+    }
     setStatusMessage({
       tone: 'info',
-      text: 'Khôi phục mật khẩu chưa được cấu hình trên backend. Vui lòng liên hệ admin để đặt lại mật khẩu.'
+      text: 'Đang gửi yêu cầu cấp lại mật khẩu...'
     });
+    api
+      .post('/forgot-password', { email: normalizedEmail })
+      .then((response) => {
+        setStatusMessage({
+          tone: 'success',
+          text: response.data?.message ?? 'Đã gửi email reset mật khẩu. Vui lòng kiểm tra hộp thư.'
+        });
+      })
+      .catch((error) => {
+        setStatusMessage({
+          tone: 'error',
+          text: getApiErrorMessage(error, 'Không thể gửi yêu cầu cấp lại mật khẩu.')
+        });
+      });
   };
 
   return (
@@ -108,7 +151,7 @@ const LoginPage = () => {
         <div className="space-y-2 text-sm">
           <p>
             Chưa có tài khoản mua hàng?{' '}
-            <Link to="/register" className="text-mocha underline-offset-4 hover:underline">
+            <Link to={registerPath} className="text-mocha underline-offset-4 hover:underline">
               Đăng ký khách
             </Link>
           </p>

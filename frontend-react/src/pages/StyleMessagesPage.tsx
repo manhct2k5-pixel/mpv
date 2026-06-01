@@ -162,6 +162,8 @@ const StyleMessagesPage = () => {
   const [selectedPartnerId, setSelectedPartnerId] = useState<number | null>(null);
   const [message, setMessage] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
+  const [isWaitingForAiReply, setIsWaitingForAiReply] = useState(false);
+  const msgCountOnSendRef = useRef(0);
   const hasSentPresetRef = useRef(false);
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -214,9 +216,10 @@ const StyleMessagesPage = () => {
     () =>
       partners.filter((partner) => {
         const role = normalizePartnerRole(partner.role);
+        if (viewerRole === 'user' && role === 'warehouse') return false;
         return groupFromPartnerRole(role) === selectedGroup;
       }),
-    [partners, selectedGroup]
+    [partners, selectedGroup, viewerRole]
   );
 
   useEffect(() => {
@@ -241,7 +244,7 @@ const StyleMessagesPage = () => {
     queryKey: ['store-messages', selectedPartnerId],
     queryFn: () => storeApi.messages(selectedPartnerId as number),
     enabled: isAuthenticated && selectedPartnerId != null,
-    refetchInterval: selectedPartnerId != null ? 5_000 : false
+    refetchInterval: selectedPartnerId != null ? (isWaitingForAiReply ? 2_000 : 5_000) : false
   });
 
   const sendMutation = useMutation({
@@ -250,6 +253,8 @@ const StyleMessagesPage = () => {
     onSuccess: (_saved, payload) => {
       setMessage('');
       setInputError(null);
+      msgCountOnSendRef.current = messages.length;
+      setIsWaitingForAiReply(true);
       queryClient.invalidateQueries({ queryKey: ['store-messages', payload.partnerId] });
       queryClient.invalidateQueries({ queryKey: ['store-message-partners'] });
     },
@@ -278,7 +283,24 @@ const StyleMessagesPage = () => {
   useEffect(() => {
     if (!messageListRef.current) return;
     messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
-  }, [messagesWithDateSeparator.length, selectedPartnerId]);
+  }, [messagesWithDateSeparator.length, selectedPartnerId, isWaitingForAiReply]);
+
+  useEffect(() => {
+    if (!isWaitingForAiReply || messages.length <= msgCountOnSendRef.current) return;
+    if (!messages[messages.length - 1].fromMe) {
+      setIsWaitingForAiReply(false);
+    }
+  }, [messages, isWaitingForAiReply]);
+
+  useEffect(() => {
+    setIsWaitingForAiReply(false);
+  }, [selectedPartnerId]);
+
+  useEffect(() => {
+    if (!isWaitingForAiReply) return;
+    const timer = setTimeout(() => setIsWaitingForAiReply(false), 90_000);
+    return () => clearTimeout(timer);
+  }, [isWaitingForAiReply]);
 
   const handleSend = (rawContent?: string) => {
     const content = (rawContent ?? message).trim();
@@ -434,6 +456,9 @@ const StyleMessagesPage = () => {
                 </span>
               ) : null}
               {sendMutation.isPending && <span className="tag">Đang gửi...</span>}
+              {!sendMutation.isPending && isWaitingForAiReply && viewerRole === 'user' && (
+                <span className="tag">AI đang trả lời...</span>
+              )}
             </div>
           </div>
         </div>
@@ -502,6 +527,15 @@ const StyleMessagesPage = () => {
                 </div>
               </div>
             ))
+          )}
+          {isWaitingForAiReply && viewerRole === 'user' && selectedPartnerId != null && (
+            <div className="flex justify-start pt-1">
+              <div className="flex items-center gap-1.5 rounded-2xl border border-caramel/30 bg-white/90 px-4 py-3 shadow-sm">
+                <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-mocha/50" style={{ animationDelay: '0ms' }} />
+                <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-mocha/50" style={{ animationDelay: '150ms' }} />
+                <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-mocha/50" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
           )}
         </div>
 

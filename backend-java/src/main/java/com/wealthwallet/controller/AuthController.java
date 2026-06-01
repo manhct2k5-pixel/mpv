@@ -3,6 +3,7 @@ package com.wealthwallet.controller;
 import com.wealthwallet.domain.entity.UserAccount;
 import com.wealthwallet.dto.BusinessRequestCreateRequest;
 import com.wealthwallet.dto.ChangePasswordRequest;
+import com.wealthwallet.dto.ForgotPasswordRequest;
 import com.wealthwallet.dto.LoginRequest;
 import com.wealthwallet.dto.RegisterRequest;
 import com.wealthwallet.dto.SellerRegisterRequest;
@@ -36,8 +37,20 @@ public class AuthController {
         try {
             String token = userService.login(request);
             return ResponseEntity.ok(Map.of("token", token));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(401).body(Map.of("error", "Email hoặc mật khẩu chưa đúng"));
+            return ResponseEntity.status(401).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        try {
+            userService.requestPasswordReset(request);
+            return ResponseEntity.ok(Map.of("message", "Đã gửi email reset mật khẩu. Vui lòng kiểm tra hộp thư."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(404).body(Map.of("message", e.getMessage()));
         }
     }
 

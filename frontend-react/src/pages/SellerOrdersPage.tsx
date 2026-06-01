@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Boxes, Download, Search, ShieldCheck, Store, Truck } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { financeApi, storeApi } from '../services/api.ts';
+import { financeApi, storeApi, getApiErrorMessage } from '../services/api.ts';
 import { useAuthStore } from '../store/auth.ts';
 import { paymentMethodLabels, paymentStatusLabels } from '../constants/payment.ts';
 import type { OrderSummary } from '../types/store.ts';
@@ -11,11 +11,11 @@ type SortOption = 'newest' | 'oldest' | 'total_desc' | 'total_asc';
 type RiskFilter = 'all' | 'unpaid_transfer' | 'stuck_pending' | 'any';
 
 const statusLabels: Record<string, string> = {
-  pending: 'Chờ xác nhận',
+  pending: 'Chờ người bán xác nhận',
   processing: 'Đang xử lý',
-  confirmed: 'Đã xác nhận',
-  packing: 'Đang đóng gói',
-  shipped: 'Đang giao',
+  confirmed: 'Đã xác nhận (chờ vận đơn)',
+  packing: 'Đang tạo vận đơn',
+  shipped: 'Đang vận chuyển',
   delivered: 'Đã giao',
   cancelled: 'Đã hủy'
 };
@@ -43,16 +43,16 @@ const isBankTransferUnpaid = (order: OrderSummary) =>
 
 const isStuckPending = (order: OrderSummary) => {
   const status = order.status.toLowerCase();
-  return (status === 'pending' || status === 'processing') && getOrderAgeHours(order.createdAt) >= 24;
+  return status === 'pending' && getOrderAgeHours(order.createdAt) >= 24;
 };
 
 const SellerOrdersPage = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [actionMessage, setActionMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ['profile'],
@@ -71,26 +71,25 @@ const SellerOrdersPage = () => {
   const canViewReports = isAdmin || isSeller;
   const sellerId = profile?.id != null ? Number(profile.id) : null;
 
+  const queryClient = useQueryClient();
+
+  const confirmOrderMutation = useMutation({
+    mutationFn: (orderId: number) => storeApi.updateOrderStatus(orderId, 'confirmed'),
+    onSuccess: () => {
+      setActionMessage({ text: 'Đã xác nhận đơn hàng.', ok: true });
+      queryClient.invalidateQueries({ queryKey: ['seller-orders'] });
+    },
+    onError: (error) => {
+      setActionMessage({ text: getApiErrorMessage(error, 'Không thể xác nhận đơn hàng.'), ok: false });
+    }
+  });
+
   const { data: orders = [], isLoading: ordersLoading } = useQuery<OrderSummary[]>({
     queryKey: ['seller-orders', role, sellerId],
     queryFn: () => (isAdmin ? financeApi.admin.orders() : storeApi.sellerOrders(sellerId as number)),
     enabled: isAuthenticated && canManageOrders && (isAdmin || sellerId != null),
     refetchInterval: 5_000
   });
-
-  const confirmPaymentMutation = useMutation({
-    mutationFn: (id: number) => storeApi.confirmOrderPayment(id),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['seller-orders'] });
-      queryClient.invalidateQueries({ queryKey: ['store-orders'] });
-      queryClient.setQueryData(['store-order', data.id], data);
-    }
-  });
-
-  const confirmingOrderId =
-    confirmPaymentMutation.isPending && typeof confirmPaymentMutation.variables === 'number'
-      ? confirmPaymentMutation.variables
-      : null;
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { all: orders.length };
@@ -146,12 +145,12 @@ const SellerOrdersPage = () => {
     return {
       title: 'Bảng đơn hàng gian hàng',
       description:
-        'Theo dõi đơn có sản phẩm của bạn, xác nhận thanh toán chuyển khoản và phối hợp kho để giao đúng hẹn.',
+        'Theo dõi đơn có sản phẩm của bạn, chờ admin xác nhận chuyển khoản và phối hợp kho để giao đúng hẹn.',
       badge: 'Seller',
       icon: Store,
       focusLabel: 'Đơn mới cần xác nhận',
-      focusValue: (statusCounts.pending ?? 0) + (statusCounts.processing ?? 0),
-      steps: ['1) Kiểm tra đơn mới', '2) Xác nhận thanh toán (nếu CK)', '3) Bàn giao kho khi đơn đã confirmed']
+      focusValue: (statusCounts.pending ?? 0),
+      steps: ['1) Xác nhận đơn mới (Pending → Confirmed)', '2) Nhân viên tạo vận đơn và giao hàng', '3) Khách xác nhận đã nhận hàng → Admin chuyển tiền']
     };
   })();
 
@@ -393,6 +392,16 @@ const SellerOrdersPage = () => {
           </div>
         </div>
 
+        {actionMessage ? (
+          <div
+            className={`mb-3 rounded-xl px-4 py-2.5 text-sm font-medium ${
+              actionMessage.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+            }`}
+          >
+            {actionMessage.text}
+          </div>
+        ) : null}
+
         {ordersLoading ? (
           <div className="text-sm text-cocoa/70">Đang tải danh sách đơn...</div>
         ) : filteredOrders.length === 0 ? (
@@ -405,17 +414,19 @@ const SellerOrdersPage = () => {
               const stuckPending = isStuckPending(order);
               const operationHint = isStaff
                 ? statusKey === 'confirmed'
-                  ? 'Đơn đã sẵn sàng đóng gói.'
+                  ? 'Đơn đã xác nhận, tạo vận đơn để chuyển sang đóng gói.'
                   : statusKey === 'packing'
-                    ? 'Đơn đang đóng gói, có thể bàn giao vận chuyển.'
+                    ? 'Đang tạo vận đơn, hệ thống sẽ tự chuyển trạng thái vận chuyển.'
                     : 'Theo dõi trạng thái để nhận việc tiếp theo.'
                 : isAdmin
                   ? bankTransferUnpaid
                     ? 'Đơn chuyển khoản chưa thanh toán, nên xác nhận trước khi giao.'
                     : 'Theo dõi tiến độ và phối hợp seller/kho khi cần.'
-                  : statusKey === 'pending' || statusKey === 'processing'
-                    ? 'Đơn mới, cần xác nhận để chuyển luồng kho.'
-                    : 'Theo dõi trạng thái vận hành của đơn.';
+                  : statusKey === 'pending'
+                    ? 'Đơn mới, cần bấm xác nhận để chuyển đơn cho nhân viên xử lý.'
+                    : statusKey === 'shipped'
+                      ? 'Đơn đang giao, chờ khách xác nhận đã nhận hàng.'
+                      : 'Theo dõi trạng thái vận hành của đơn.';
               return (
                 <div
                   key={order.id}
@@ -450,14 +461,16 @@ const SellerOrdersPage = () => {
 
                   <div className="flex items-center gap-3">
                     <p className="text-sm font-semibold text-mocha">{formatPrice(order.total)}</p>
-                    {!isStaff && bankTransferUnpaid && (
+                    {isSeller && (statusKey === 'pending' || statusKey === 'processing') && (
                       <button
                         type="button"
                         className="btn-primary btn-primary--sm"
-                        onClick={() => confirmPaymentMutation.mutate(order.id)}
-                        disabled={confirmPaymentMutation.isPending}
+                        disabled={confirmOrderMutation.isPending && confirmOrderMutation.variables === order.id}
+                        onClick={() => confirmOrderMutation.mutate(order.id)}
                       >
-                        {confirmingOrderId === order.id ? 'Đang xác nhận...' : 'Xác nhận CK'}
+                        {confirmOrderMutation.isPending && confirmOrderMutation.variables === order.id
+                          ? 'Đang xác nhận...'
+                          : 'Xác nhận đơn'}
                       </button>
                     )}
                     <Link to={`/don-hang/${order.id}`} className="btn-secondary btn-secondary--sm">

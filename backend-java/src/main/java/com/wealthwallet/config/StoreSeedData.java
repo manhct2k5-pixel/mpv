@@ -264,12 +264,10 @@ public class StoreSeedData implements CommandLineRunner {
                 5
         );
         Map<String, List<String>> localProductImageOverrides = loadWorkspaceProductImageOverrides();
-        seedPartnerSellerCatalog(sellerSage, women, men, accessories, sale, "sage");
-        seedPartnerSellerCatalog(sellerCanvas, women, men, accessories, sale, "canvas");
+        seedPartnerSellerCatalog(seller, women, men, accessories, sale, "sage");
+        seedPartnerSellerCatalog(seller, women, men, accessories, sale, "canvas");
         trimGeneratedDemoCatalog(seller);
         syncDemoProductArtwork(seller, localProductImageOverrides);
-        syncDemoProductArtwork(sellerSage, localProductImageOverrides);
-        syncDemoProductArtwork(sellerCanvas, localProductImageOverrides);
 
         createLookbookIfMissing(
                 "Tủ đồ nâu kem cho mọi ngày",
@@ -3280,27 +3278,27 @@ public class StoreSeedData implements CommandLineRunner {
     }
 
     private void seedVouchers() {
-        if (voucherRepository.count() > 0) {
-            return;
-        }
+        upsertVoucher("WELCOME10", Voucher.Type.PERCENT, 10.0, 200_000.0, LocalDateTime.now().plusMonths(6), true);
+        upsertVoucher("FREESHIP30K", Voucher.Type.FIXED, 30_000.0, 300_000.0, LocalDateTime.now().plusMonths(6), true);
+        upsertVoucher("EXPIRED2024", Voucher.Type.PERCENT, 15.0, 100_000.0, LocalDateTime.now().minusDays(30), true);
+    }
 
-        voucherRepository.save(Voucher.builder()
-                .code("WELCOME10")
-                .type(Voucher.Type.PERCENT)
-                .value(10.0)
-                .minOrder(200_000.0)
-                .expireAt(LocalDateTime.now().plusMonths(6))
-                .active(true)
-                .build());
-
-        voucherRepository.save(Voucher.builder()
-                .code("FREESHIP30K")
-                .type(Voucher.Type.FIXED)
-                .value(30_000.0)
-                .minOrder(300_000.0)
-                .expireAt(LocalDateTime.now().plusMonths(6))
-                .active(true)
-                .build());
+    private void upsertVoucher(
+            String code,
+            Voucher.Type type,
+            Double value,
+            Double minOrder,
+            LocalDateTime expireAt,
+            boolean active
+    ) {
+        Voucher voucher = voucherRepository.findByCodeIgnoreCase(code)
+                .orElseGet(() -> Voucher.builder().code(code).build());
+        voucher.setType(type);
+        voucher.setValue(value);
+        voucher.setMinOrder(minOrder);
+        voucher.setExpireAt(expireAt);
+        voucher.setActive(active);
+        voucherRepository.save(voucher);
     }
 
     private UserAccount getOrCreateDemoUser(String fullName, String email, UserAccount.Role role) {

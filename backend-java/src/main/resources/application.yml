@@ -26,8 +26,8 @@ app:
   ai:
     style-assistant:
       enabled: ${STYLE_AI_ENABLED:true}
-      api-key: ${OPENAI_API_KEY:}
-      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      api-key: ${STYLE_AI_API_KEY:${OPENAI_API_KEY:}}
+      base-url: ${STYLE_AI_BASE_URL:${OPENAI_BASE_URL:https://api.openai.com/v1}}
       model: ${STYLE_AI_MODEL:gpt-4o-mini}
       temperature: ${STYLE_AI_TEMPERATURE:0.4}
       max-tokens: ${STYLE_AI_MAX_TOKENS:500}
@@ -86,6 +86,27 @@ spring:
 app:
   seed:
     demo-data: true
+
+# Stable secret for local dev so JWT sessions survive backend restarts.
+# Override with JWT_SECRET when needed; production profiles must supply their own.
+jwt:
+  secret: ${JWT_SECRET:local-dev-stable-secret-change-me-0123456789abcdef}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: ds2api
+
+app:
+  ai:
+    style-assistant:
+      enabled: ${STYLE_AI_ENABLED:true}
+      api-key: ${STYLE_AI_API_KEY:${DS2API_API_KEY:stylist-local-key}}
+      base-url: ${STYLE_AI_BASE_URL:${DS2API_BASE_URL:http://127.0.0.1:5001/v1}}
+      model: ${STYLE_AI_MODEL:${DS2API_MODEL:deepseek-v4-flash}}
+      temperature: ${STYLE_AI_TEMPERATURE:0.4}
+      max-tokens: ${STYLE_AI_MAX_TOKENS:500}
 
 ---
 spring:

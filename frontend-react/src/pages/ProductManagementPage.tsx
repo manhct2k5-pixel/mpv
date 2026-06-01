@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, LayoutGrid, PackagePlus, Plus, Sparkles, Trash2, UploadCloud } from 'lucide-react';
+import { CheckCircle2, Download, LayoutGrid, PackagePlus, Plus, Sparkles, Trash2, UploadCloud, XCircle } from 'lucide-react';
 import { financeApi, storeApi } from '../services/api.ts';
 import type { StoreProductDetail, StoreProductSummary } from '../types/store';
 import { useSearchParams } from 'react-router-dom';
@@ -14,6 +14,16 @@ type VariantInput = {
   stockQty: string;
   imageUrl: string;
 };
+
+type ProductStatusFilter = 'all' | 'pending' | 'approved' | 'featured' | 'sale';
+
+const PRODUCT_FILTER_TABS: Array<{ id: ProductStatusFilter; label: string }> = [
+  { id: 'all', label: 'Tất cả' },
+  { id: 'pending', label: 'Chờ duyệt' },
+  { id: 'approved', label: 'Đã duyệt' },
+  { id: 'featured', label: 'Nổi bật' },
+  { id: 'sale', label: 'Đang sale' }
+];
 
 const emptyVariant = (): VariantInput => ({
   size: '',
@@ -29,14 +39,27 @@ const parseImageUrls = (value: string) =>
     .map((line) => line.trim())
     .filter(Boolean);
 
+const getProductSellerLabel = (product: Pick<StoreProductSummary, 'sellerId' | 'sellerName' | 'sellerStoreName'>) => {
+  const storeName = product.sellerStoreName?.trim();
+  const sellerName = product.sellerName?.trim();
+  if (storeName) return storeName;
+  if (sellerName) return sellerName;
+  return product.sellerId ? `Seller #${product.sellerId}` : 'Chưa gán seller';
+};
+
+const getProductSearchText = (product: StoreProductSummary) =>
+  `${product.name} ${product.slug} ${product.category ?? ''} ${getProductSellerLabel(product)}`.toLowerCase();
+
 const ProductManagementPage = () => {
   const queryClient = useQueryClient();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [mode, setMode] = useState<'create' | 'edit'>('create');
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [selectedProductDetail, setSelectedProductDetail] = useState<StoreProductDetail | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sellerQuery, setSellerQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'featured' | 'sale'>('all');
+  const [statusFilter, setStatusFilter] = useState<ProductStatusFilter>('all');
   const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     name: '',
@@ -49,6 +72,7 @@ const ProductManagementPage = () => {
     material: '',
     fit: '',
     featured: false,
+    active: true,
     imageUrls: ''
   });
   const [variants, setVariants] = useState<VariantInput[]>([emptyVariant()]);
@@ -66,67 +90,89 @@ const ProductManagementPage = () => {
     queryFn: () => storeApi.sellerProducts(Number(profile?.id)),
     enabled: Boolean(profile?.id)
   });
-  const { data: allProducts = [] } = useQuery({
-    queryKey: ['store-products-admin'],
-    queryFn: async () => {
-      const payload = await storeApi.products({ page: 0, pageSize: 200 });
-      return payload.items;
-    },
-    enabled: (profile?.role ?? '').toLowerCase() === 'admin'
-  });
-
   const canManage = useMemo(() => {
     const role = (profile?.role ?? '').toLowerCase();
-    return role === 'admin' || role === 'seller';
+    return role === 'admin' || role === 'seller' || role === 'warehouse' || role === 'styles';
   }, [profile?.role]);
 
   const normalizedRole = (profile?.role ?? '').toLowerCase();
   const isAdmin = normalizedRole === 'admin';
-  const workspaceTitle = isAdmin ? 'Quản lý catalog toàn hệ thống' : 'Quản lý catalog gian hàng';
+  const isStaff = normalizedRole === 'warehouse' || normalizedRole === 'styles';
+  const workspaceTitle = isAdmin
+    ? 'Quản lý catalog toàn hệ thống'
+    : isStaff
+      ? 'Duyệt sản phẩm seller'
+      : 'Quản lý catalog gian hàng';
   const workspaceDescription = isAdmin
     ? 'Theo dõi toàn bộ sản phẩm để chuẩn hoá danh mục, ưu tiên sản phẩm nổi bật và kiểm soát giá bán.'
-    : 'Cập nhật sản phẩm, biến thể và tồn kho để đồng bộ với vận hành đơn hàng.';
-  const workspaceBadge = isAdmin ? 'Admin Catalog' : 'Seller';
+    : isStaff
+      ? 'Kiểm tra sản phẩm seller mới đăng, bật hiển thị khi nội dung và tồn kho đã đạt yêu cầu.'
+      : 'Cập nhật sản phẩm, biến thể và tồn kho để đồng bộ với vận hành đơn hàng.';
+  const workspaceBadge = isAdmin ? 'Admin Catalog' : isStaff ? 'Staff duyệt SP' : 'Seller';
 
   useEffect(() => {
     const q = searchParams.get('q') ?? '';
     setSearchTerm(q);
   }, [searchParams]);
 
+  const sellerOptions = useMemo(() => {
+    const sellers = new Map<number, string>();
+    sellerProducts.forEach((item) => {
+      if (item.sellerId != null) {
+        sellers.set(item.sellerId, getProductSellerLabel(item));
+      }
+    });
+    return [...sellers.entries()]
+      .map(([id, label]) => ({ id, label }))
+      .sort((left, right) => left.label.localeCompare(right.label, 'vi'));
+  }, [sellerProducts]);
+
+  const sellerScopedProducts = useMemo(() => {
+    const normalizedSeller = sellerQuery.trim().toLowerCase();
+    if (!normalizedSeller) return sellerProducts;
+    return sellerProducts.filter((item) => getProductSellerLabel(item).toLowerCase().includes(normalizedSeller));
+  }, [sellerProducts, sellerQuery]);
+
   const visibleProducts = useMemo(() => {
-    const items = (profile?.role ?? '').toLowerCase() === 'admin' ? allProducts : sellerProducts;
+    const items = sellerScopedProducts;
     const normalized = searchTerm.trim().toLowerCase();
     return items.filter((item) => {
-      const passName = !normalized || item.name.toLowerCase().includes(normalized);
+      const passName = !normalized || getProductSearchText(item).includes(normalized);
       const passCategory = categoryFilter === 'all' || (item.category ?? '') === categoryFilter;
       const isSale = item.salePrice != null && item.salePrice > 0 && item.salePrice < item.basePrice;
       const passStatus =
         statusFilter === 'all' ||
         (statusFilter === 'featured' && Boolean(item.featured)) ||
-        (statusFilter === 'sale' && isSale);
+        (statusFilter === 'sale' && isSale) ||
+        (statusFilter === 'pending' && item.active === false) ||
+        (statusFilter === 'approved' && item.active !== false);
       return passName && passCategory && passStatus;
     });
-  }, [allProducts, categoryFilter, profile?.role, searchTerm, sellerProducts, statusFilter]);
+  }, [categoryFilter, searchTerm, sellerScopedProducts, statusFilter]);
 
   const categoryOptions = useMemo(() => {
     const values = new Set<string>();
-    const source = (profile?.role ?? '').toLowerCase() === 'admin' ? allProducts : sellerProducts;
+    const source = sellerScopedProducts;
     source.forEach((item) => {
       if (item.category) values.add(item.category);
     });
     return Array.from(values).sort((a, b) => a.localeCompare(b, 'vi'));
-  }, [allProducts, profile?.role, sellerProducts]);
+  }, [sellerScopedProducts]);
 
   const featuredCount = useMemo(
-    () => visibleProducts.filter((item) => Boolean(item.featured)).length,
-    [visibleProducts]
+    () => sellerScopedProducts.filter((item) => Boolean(item.featured)).length,
+    [sellerScopedProducts]
   );
   const onSaleCount = useMemo(
     () =>
-      visibleProducts.filter(
+      sellerScopedProducts.filter(
         (item) => item.salePrice != null && item.salePrice > 0 && item.salePrice < item.basePrice
       ).length,
-    [visibleProducts]
+    [sellerScopedProducts]
+  );
+  const pendingCount = useMemo(
+    () => sellerScopedProducts.filter((item) => item.active === false).length,
+    [sellerScopedProducts]
   );
 
   const mutation = useMutation({
@@ -179,6 +225,7 @@ const ProductManagementPage = () => {
         basePrice: Number(formData.basePrice),
         salePrice: formData.salePrice ? Number(formData.salePrice) : undefined,
         featured: formData.featured,
+        active: formData.active,
         imageUrls
       });
 
@@ -221,11 +268,13 @@ const ProductManagementPage = () => {
         basePrice: '',
         salePrice: '',
         description: '',
-        imageUrls: ''
+        imageUrls: '',
+        active: true
       }));
       setVariants([emptyVariant()]);
       setMode('create');
       setSelectedProductId(null);
+      setSelectedProductDetail(null);
       queryClient.invalidateQueries({ queryKey: ['store-products'] });
       queryClient.invalidateQueries({ queryKey: ['store-featured'] });
       queryClient.invalidateQueries({ queryKey: ['seller-products'] });
@@ -244,8 +293,32 @@ const ProductManagementPage = () => {
       if (selectedProductId) {
         setMode('create');
         setSelectedProductId(null);
+        setSelectedProductDetail(null);
         setVariants([emptyVariant()]);
       }
+    },
+    onError: (error: any) => {
+      setStatusMessage(error.response?.data?.message || error.response?.data?.error || 'Không xóa được sản phẩm.');
+    }
+  });
+
+  const approvalMutation = useMutation({
+    mutationFn: (payload: { product: StoreProductSummary | StoreProductDetail; active: boolean }) =>
+      storeApi.updateProduct(payload.product.id, { active: payload.active }),
+    onSuccess: (updated, variables) => {
+      setSelectedProductDetail(updated);
+      setSelectedProductId(updated.id);
+      queryClient.invalidateQueries({ queryKey: ['seller-products'] });
+      queryClient.invalidateQueries({ queryKey: ['store-products'] });
+      queryClient.invalidateQueries({ queryKey: ['store-featured'] });
+      setStatusMessage(
+        variables.active
+          ? `Đã xác nhận duyệt sản phẩm "${updated.name}".`
+          : `Đã hủy duyệt sản phẩm "${updated.name}".`
+      );
+    },
+    onError: (error: any) => {
+      setStatusMessage(error.message || error.response?.data?.message || 'Không cập nhật được trạng thái duyệt sản phẩm.');
     }
   });
 
@@ -255,6 +328,9 @@ const ProductManagementPage = () => {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['seller-products'] });
       setVariants((prev) => prev.filter((variant) => variant.id !== variables.variantId));
+    },
+    onError: (error: any) => {
+      setStatusMessage(error.response?.data?.message || error.response?.data?.error || 'Không xóa được biến thể.');
     }
   });
 
@@ -341,9 +417,10 @@ const ProductManagementPage = () => {
   };
 
   const loadProductForEdit = async (product: StoreProductSummary) => {
-    const detail: StoreProductDetail = await storeApi.product(product.slug);
+    const detail: StoreProductDetail = await storeApi.managedProduct(product.id);
     setMode('edit');
     setSelectedProductId(detail.id);
+    setSelectedProductDetail(detail);
     setFormData({
       name: detail.name ?? '',
       categoryId: categories.find((cat) => cat.name === detail.category)?.id?.toString() ?? '',
@@ -355,6 +432,7 @@ const ProductManagementPage = () => {
       material: detail.material ?? '',
       fit: detail.fit ?? '',
       featured: Boolean(detail.featured),
+      active: detail.active !== false,
       imageUrls: (detail.images ?? []).join('\n')
     });
     setVariants(
@@ -393,10 +471,10 @@ const ProductManagementPage = () => {
           <span className="badge">{workspaceBadge}</span>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-4">
           <div className="rounded-2xl border border-caramel/30 bg-white/75 p-4">
             <p className="text-xs text-cocoa/60">Sản phẩm trong phạm vi</p>
-            <p className="mt-1 text-2xl font-semibold text-mocha">{visibleProducts.length.toLocaleString('vi-VN')}</p>
+            <p className="mt-1 text-2xl font-semibold text-mocha">{sellerScopedProducts.length.toLocaleString('vi-VN')}</p>
           </div>
           <div className="rounded-2xl border border-caramel/30 bg-white/75 p-4">
             <p className="text-xs text-cocoa/60">Sản phẩm nổi bật</p>
@@ -406,16 +484,20 @@ const ProductManagementPage = () => {
             <p className="text-xs text-cocoa/60">Sản phẩm đang sale</p>
             <p className="mt-1 text-2xl font-semibold text-mocha">{onSaleCount.toLocaleString('vi-VN')}</p>
           </div>
+          <div className="rounded-2xl border border-caramel/30 bg-white/75 p-4">
+            <p className="text-xs text-cocoa/60">Chờ duyệt</p>
+            <p className="mt-1 text-2xl font-semibold text-mocha">{pendingCount.toLocaleString('vi-VN')}</p>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
           <span className="tag">
             <PackagePlus className="h-3.5 w-3.5" />
-            {mode === 'create' ? 'Đang ở chế độ thêm mới' : 'Đang ở chế độ chỉnh sửa'}
+            {isStaff ? 'Đang ở chế độ duyệt sản phẩm' : mode === 'create' ? 'Đang ở chế độ thêm mới' : 'Đang ở chế độ chỉnh sửa'}
           </span>
           <span className="tag">
             <Sparkles className="h-3.5 w-3.5" />
-            {isAdmin ? 'Có thể quản trị toàn bộ catalog' : 'Quản lý sản phẩm theo gian hàng'}
+            {isAdmin ? 'Có thể quản trị toàn bộ catalog' : isStaff ? 'Theo dõi sản phẩm theo seller' : 'Quản lý sản phẩm theo gian hàng'}
           </span>
         </div>
       </section>
@@ -443,13 +525,42 @@ const ProductManagementPage = () => {
           </div>
         </div>
 
-        <div className="grid gap-2 md:grid-cols-3">
+        <div className="flex flex-wrap gap-2">
+          {PRODUCT_FILTER_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                statusFilter === tab.id
+                  ? 'border-mocha bg-mocha text-white'
+                  : 'border-caramel/30 bg-white/80 text-cocoa hover:border-mocha/50'
+              }`}
+              onClick={() => setStatusFilter(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid gap-2 md:grid-cols-4">
           <input
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Tìm theo tên sản phẩm"
+            placeholder="Tìm tên sản phẩm / SKU"
             className="rounded-2xl border-2 border-caramel/30 bg-white/80 px-4 py-2 text-sm text-cocoa outline-none focus:border-mocha"
           />
+          <input
+            value={sellerQuery}
+            onChange={(event) => setSellerQuery(event.target.value)}
+            list="product-seller-options"
+            placeholder="Tìm người bán / gian hàng"
+            className="rounded-2xl border-2 border-caramel/30 bg-white/80 px-4 py-2 text-sm text-cocoa outline-none focus:border-mocha"
+          />
+          <datalist id="product-seller-options">
+            {sellerOptions.map((seller) => (
+              <option key={seller.id} value={seller.label} />
+            ))}
+          </datalist>
           <select
             value={categoryFilter}
             onChange={(event) => setCategoryFilter(event.target.value)}
@@ -462,15 +573,18 @@ const ProductManagementPage = () => {
               </option>
             ))}
           </select>
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
-            className="rounded-2xl border-2 border-caramel/30 bg-white/80 px-4 py-2 text-sm text-cocoa outline-none focus:border-mocha"
+          <button
+            type="button"
+            className="rounded-2xl border-2 border-caramel/30 bg-white/80 px-4 py-2 text-sm font-semibold text-cocoa outline-none hover:border-mocha"
+            onClick={() => {
+              setSearchTerm('');
+              setSellerQuery('');
+              setCategoryFilter('all');
+              setStatusFilter('all');
+            }}
           >
-            <option value="all">Mọi trạng thái</option>
-            <option value="featured">Đang nổi bật</option>
-            <option value="sale">Đang khuyến mãi</option>
-          </select>
+            Xóa lọc
+          </button>
         </div>
         {visibleProducts.length === 0 ? (
           <div className="text-sm text-cocoa/70">Chưa có sản phẩm.</div>
@@ -493,10 +607,18 @@ const ProductManagementPage = () => {
                   <p className="text-xs text-cocoa/60">
                     SKU: {product.slug} · {product.category || 'Khác'}
                   </p>
+                  <p className="text-xs text-cocoa/60">Seller: {getProductSellerLabel(product)}</p>
                   <p className="text-xs text-cocoa/60">
                     Giá: {product.basePrice.toLocaleString('vi-VN')} đ
                     {product.salePrice ? ` · Sale: ${product.salePrice.toLocaleString('vi-VN')} đ` : ''}
                   </p>
+                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                    product.active === false
+                      ? 'border-amber-200 bg-amber-50 text-amber-700'
+                      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  }`}>
+                    {product.active === false ? 'Chờ staff duyệt' : 'Đang hiển thị'}
+                  </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -504,16 +626,39 @@ const ProductManagementPage = () => {
                     className="btn-secondary btn-secondary--sm"
                     onClick={() => loadProductForEdit(product)}
                   >
-                    Chỉnh sửa
+                    {isStaff ? 'Xem chi tiết' : 'Chỉnh sửa'}
                   </button>
-                  <button
-                    type="button"
-                    className="btn-secondary btn-secondary--sm"
-                    onClick={() => deleteMutation.mutate(product.id)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    Xóa
-                  </button>
+                  {isStaff ? (
+                    <>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-secondary--sm"
+                        onClick={() => approvalMutation.mutate({ product, active: true })}
+                        disabled={approvalMutation.isPending || product.active !== false}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Xác nhận
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-secondary--sm"
+                        onClick={() => approvalMutation.mutate({ product, active: false })}
+                        disabled={approvalMutation.isPending || product.active === false}
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                        Hủy
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn-secondary btn-secondary--sm"
+                      onClick={() => deleteMutation.mutate(product.id)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      Xóa
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -521,6 +666,119 @@ const ProductManagementPage = () => {
         )}
       </section>
 
+      {isStaff && statusMessage ? (
+        <div className="sticker-card p-4 text-sm text-cocoa/70">{statusMessage}</div>
+      ) : null}
+
+      {isStaff ? (
+        <section className="sticker-card space-y-4 p-6 sm:p-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-cocoa">Thông tin chi tiết sản phẩm</h2>
+              <p className="text-sm text-cocoa/65">
+                Chọn một sản phẩm để kiểm tra nội dung, ảnh, biến thể và xác nhận hoặc hủy duyệt.
+              </p>
+            </div>
+            {selectedProductDetail ? (
+              <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+                selectedProductDetail.active === false
+                  ? 'border-amber-200 bg-amber-50 text-amber-700'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              }`}>
+                {selectedProductDetail.active === false ? 'Chờ staff duyệt' : 'Đang hiển thị'}
+              </span>
+            ) : null}
+          </div>
+
+          {selectedProductDetail ? (
+            <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+              <article className="space-y-3 rounded-2xl border border-caramel/30 bg-white/80 p-4">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-cocoa/55">Tên sản phẩm</p>
+                  <p className="text-lg font-semibold text-mocha">{selectedProductDetail.name}</p>
+                  <p className="text-sm text-cocoa/65">Seller: {getProductSellerLabel(selectedProductDetail)}</p>
+                </div>
+                <div className="grid gap-2 text-sm text-cocoa/70 sm:grid-cols-2">
+                  <p>Danh mục: {selectedProductDetail.category ?? '--'}</p>
+                  <p>SKU: {selectedProductDetail.slug}</p>
+                  <p>Giá gốc: {selectedProductDetail.basePrice.toLocaleString('vi-VN')} đ</p>
+                  <p>
+                    Giá sale:{' '}
+                    {selectedProductDetail.salePrice
+                      ? `${selectedProductDetail.salePrice.toLocaleString('vi-VN')} đ`
+                      : '--'}
+                  </p>
+                  <p>Thương hiệu: {selectedProductDetail.brand ?? '--'}</p>
+                  <p>Chất liệu: {selectedProductDetail.material ?? '--'}</p>
+                  <p>Form dáng: {selectedProductDetail.fit ?? '--'}</p>
+                  <p>Tồn kho: {(selectedProductDetail.totalStockQty ?? selectedProductDetail.variants.reduce((sum, item) => sum + (item.stockQty ?? 0), 0)).toLocaleString('vi-VN')}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-cocoa/55">Mô tả</p>
+                  <p className="mt-1 whitespace-pre-line text-sm text-cocoa/75">
+                    {selectedProductDetail.description || 'Chưa có mô tả.'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={approvalMutation.isPending || selectedProductDetail.active !== false}
+                    onClick={() => approvalMutation.mutate({ product: selectedProductDetail, active: true })}
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Xác nhận duyệt
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={approvalMutation.isPending || selectedProductDetail.active === false}
+                    onClick={() => approvalMutation.mutate({ product: selectedProductDetail, active: false })}
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Hủy duyệt
+                  </button>
+                </div>
+              </article>
+
+              <article className="space-y-4 rounded-2xl border border-caramel/30 bg-white/80 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-cocoa">Ảnh sản phẩm</p>
+                  {selectedProductDetail.images?.length ? (
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {selectedProductDetail.images.map((image, index) => (
+                        <img
+                          key={`${image.slice(0, 32)}-${index}`}
+                          src={image}
+                          alt={`${selectedProductDetail.name} ${index + 1}`}
+                          className="h-32 w-full rounded-2xl object-cover"
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-cocoa/60">Chưa có ảnh sản phẩm.</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-cocoa">Biến thể</p>
+                  <div className="mt-2 space-y-2">
+                    {selectedProductDetail.variants.map((variant) => (
+                      <div key={variant.id} className="rounded-xl border border-caramel/25 bg-cream/30 px-3 py-2 text-sm text-cocoa/75">
+                        <p className="font-semibold text-cocoa">{variant.size} / {variant.color}</p>
+                        <p>
+                          Giá: {variant.price.toLocaleString('vi-VN')} đ · Tồn: {variant.stockQty.toLocaleString('vi-VN')}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </article>
+            </div>
+          ) : (
+            <p className="text-sm text-cocoa/65">Chưa chọn sản phẩm chờ duyệt.</p>
+          )}
+        </section>
+      ) : (
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="sticker-card grid gap-4 p-6 sm:grid-cols-2">
           <label className="text-sm text-cocoa/70">
@@ -669,6 +927,16 @@ const ProductManagementPage = () => {
             />
             Đặt làm sản phẩm nổi bật
           </label>
+          <label className="flex items-center gap-3 text-sm text-cocoa/70">
+            <input
+              type="checkbox"
+              name="active"
+              checked={formData.active}
+              onChange={handleFormChange}
+              className="h-4 w-4 rounded border-caramel/40 bg-white/70 text-mocha focus:ring-caramel/50"
+            />
+            Hiển thị trên web chính
+          </label>
         </div>
 
         <div className="sticker-card space-y-4 p-6">
@@ -775,6 +1043,7 @@ const ProductManagementPage = () => {
           <div className="sticker-card p-4 text-sm text-cocoa/70">{statusMessage}</div>
         )}
       </form>
+      )}
     </div>
   );
 };

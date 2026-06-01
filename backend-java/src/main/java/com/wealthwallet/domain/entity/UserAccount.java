@@ -100,4 +100,10 @@ public class UserAccount {
 
     @Builder.Default
     private Boolean autoSyncEnabled = Boolean.FALSE;
+
+    @Builder.Default
+    private Boolean accountLocked = Boolean.FALSE;
+
+    @Builder.Default
+    private Double walletBalance = 0.0;
 }

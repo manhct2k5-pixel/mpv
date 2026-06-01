@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { queryClient } from '../../lib/queryClient.ts';
 import { useQuery } from '@tanstack/react-query';
 import {
   Bell,
@@ -155,6 +156,7 @@ const AdminTopbar = ({ collapsed, onToggleCollapsed, onOpenMobileSidebar }: Admi
 
   const handleLogout = () => {
     logout();
+    queryClient.clear();
     navigate('/login');
   };
 

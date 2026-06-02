@@ -100,7 +100,7 @@ public class OrderService {
                 .orderNumber(generateOrderNumber())
                 .status(initialOrderStatus(request.paymentMethod()))
                 .paymentMethod(request.paymentMethod())
-                .paymentStatus(Order.PaymentStatus.UNPAID)
+                .paymentStatus(initialPaymentStatus(request.paymentMethod()))
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
                 .discount(discount)
@@ -171,7 +171,7 @@ public class OrderService {
                 .orderNumber(generateOrderNumber())
                 .status(Order.Status.PENDING)
                 .paymentMethod(request.paymentMethod())
-                .paymentStatus(Order.PaymentStatus.UNPAID)
+                .paymentStatus(initialPaymentStatus(request.paymentMethod()))
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
                 .discount(discount)
@@ -668,6 +668,18 @@ public class OrderService {
         return paymentMethod == Order.PaymentMethod.COD
                 ? Order.Status.PROCESSING
                 : Order.Status.PENDING;
+    }
+
+    /**
+     * Trạng thái thanh toán khởi tạo theo phương thức.
+     * BANK_TRANSFER (QR) → mặc định PAID để admin/staff/seller không cần xác nhận thủ công
+     * (đơn QR coi như đã thu tiền ngay khi tạo, phù hợp luồng demo).
+     * COD → UNPAID, sẽ chuyển PAID khi đơn DELIVERED (xem applyStatusChange).
+     */
+    private Order.PaymentStatus initialPaymentStatus(Order.PaymentMethod paymentMethod) {
+        return paymentMethod == Order.PaymentMethod.BANK_TRANSFER
+                ? Order.PaymentStatus.PAID
+                : Order.PaymentStatus.UNPAID;
     }
 
     private Map<Long, Integer> collectCartQuantities(List<CartItem> cartItems) {
